@@ -29,13 +29,13 @@
   --chart-4: oklch(0.75 0.10 175);
   --chart-5: oklch(0.60 0.18 140);
   --radius: 0.5rem;
-  --sidebar: oklch(1 0 0);
-  --sidebar-foreground: oklch(0.15 0.02 180);
+  --sidebar: oklch(0.12 0.02 180);
+  --sidebar-foreground: oklch(0.92 0.01 180);
   --sidebar-primary: oklch(0.55 0.15 175);
   --sidebar-primary-foreground: oklch(0.99 0 0);
-  --sidebar-accent: oklch(0.96 0.01 180);
-  --sidebar-accent-foreground: oklch(0.15 0.02 180);
-  --sidebar-border: oklch(0.90 0.01 180);
+  --sidebar-accent: oklch(0.20 0.02 180);
+  --sidebar-accent-foreground: oklch(0.92 0.01 180);
+  --sidebar-border: oklch(0.25 0.02 180);
   --sidebar-ring: oklch(0.55 0.15 175);
   --warning: oklch(0.75 0.15 85);
   --warning-foreground: oklch(0.25 0.05 85);

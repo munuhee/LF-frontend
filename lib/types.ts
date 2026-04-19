@@ -44,6 +44,7 @@ export interface Workflow {
   name: string
   description: string
   type: WorkflowType
+  priority: Priority
   isActive: boolean
   batchCount: number
   taskCount: number

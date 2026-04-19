@@ -1,13 +1,12 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { ArrowLeft, Shield, AlertCircle } from "lucide-react"
+import { ArrowLeft, Shield } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp"
-import { validateOtp, users } from "@/lib/dummy-data"
 
 export default function VerifyOTPPage() {
   const router = useRouter()
@@ -15,25 +14,6 @@ export default function VerifyOTPPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [countdown, setCountdown] = useState(60)
   const [canResend, setCanResend] = useState(false)
-  const [error, setError] = useState("")
-  const [pendingEmail, setPendingEmail] = useState("")
-  const [expectedOtp, setExpectedOtp] = useState("")
-
-  useEffect(() => {
-    // Get the email from session storage
-    const email = sessionStorage.getItem("pendingAuthEmail")
-    if (!email) {
-      router.push("/")
-      return
-    }
-    setPendingEmail(email)
-    
-    // Find the expected OTP for display hint
-    const user = users.find(u => u.email.toLowerCase() === email.toLowerCase())
-    if (user?.testOtp) {
-      setExpectedOtp(user.testOtp)
-    }
-  }, [router])
 
   useEffect(() => {
     if (countdown > 0) {
@@ -48,22 +28,9 @@ export default function VerifyOTPPage() {
     if (otp.length !== 6) return
     
     setIsLoading(true)
-    setError("")
     
     // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 500))
-    
-    // Validate OTP against seeded data
-    const user = validateOtp(pendingEmail, otp)
-    
-    if (!user) {
-      setError("Invalid OTP code. Please use the test OTP for your account.")
-      setIsLoading(false)
-      return
-    }
-    
-    // Clear session storage
-    sessionStorage.removeItem("pendingAuthEmail")
+    await new Promise(resolve => setTimeout(resolve, 1000))
     
     // Navigate to dashboard on success
     router.push("/dashboard")
@@ -72,7 +39,6 @@ export default function VerifyOTPPage() {
   const handleResend = async () => {
     setCanResend(false)
     setCountdown(60)
-    setError("")
     
     // Simulate resend API call
     await new Promise(resolve => setTimeout(resolve, 500))
@@ -109,13 +75,6 @@ export default function VerifyOTPPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col items-center gap-6">
-            {error && (
-              <div className="flex items-start gap-2 p-3 rounded-lg bg-destructive/10 text-destructive text-sm w-full">
-                <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                <span>{error}</span>
-              </div>
-            )}
-
             <InputOTP
               value={otp}
               onChange={setOtp}
@@ -131,15 +90,6 @@ export default function VerifyOTPPage() {
                 <InputOTPSlot index={5} className="h-12 w-12 text-lg border-border bg-secondary/30" />
               </InputOTPGroup>
             </InputOTP>
-
-            {/* Test OTP Hint */}
-            {expectedOtp && (
-              <div className="w-full p-3 rounded-lg bg-secondary/50 border border-border text-center">
-                <p className="text-xs text-muted-foreground">
-                  Test OTP: <span className="font-mono font-medium text-foreground">{expectedOtp}</span>
-                </p>
-              </div>
-            )}
 
             <Button
               onClick={handleVerify}
@@ -184,7 +134,7 @@ export default function VerifyOTPPage() {
         </Card>
 
         <p className="text-center text-xs text-muted-foreground mt-6">
-          {"Didn't receive the code? Check your spam folder or contact support"}
+          Didn&apos;t receive the code? Check your spam folder or contact support
         </p>
       </div>
     </div>

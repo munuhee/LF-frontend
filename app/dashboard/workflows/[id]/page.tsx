@@ -2,9 +2,10 @@
 
 import { use } from "react"
 import Link from "next/link"
-import { ArrowLeft, Calendar, Layers, ListTodo, ArrowRight, Clock } from "lucide-react"
+import { ArrowLeft, Calendar, Layers, ListTodo, ArrowRight } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Progress } from "@/components/ui/progress"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { TopBar } from "@/components/top-bar"
 import { StatusBadge, PriorityBadge, TaskTypeBadge } from "@/components/status-badge"
@@ -39,6 +40,8 @@ export default function WorkflowDetailPage({ params }: { params: Promise<{ id: s
   const completedBatches = workflowBatches.filter(b => b.status === "completed")
 
   const totalTasks = workflowBatches.reduce((sum, b) => sum + b.tasksTotal, 0)
+  const completedTasks = workflowBatches.reduce((sum, b) => sum + b.tasksCompleted, 0)
+  const progress = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0
 
   return (
     <>
@@ -61,6 +64,7 @@ export default function WorkflowDetailPage({ params }: { params: Promise<{ id: s
                 <div>
                   <div className="flex items-center gap-3 mb-2">
                     <TaskTypeBadge type={workflow.type} />
+                    <PriorityBadge priority={workflow.priority} />
                     {!workflow.isActive && (
                       <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
                         Inactive
@@ -75,18 +79,30 @@ export default function WorkflowDetailPage({ params }: { params: Promise<{ id: s
               </div>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-3 gap-4 pt-4 border-t border-border">
-                <div className="text-center">
-                  <p className="text-2xl font-bold text-foreground">{availableBatches.length}</p>
-                  <p className="text-sm text-muted-foreground">Available</p>
+              <div className="space-y-4">
+                <div>
+                  <div className="flex items-center justify-between text-sm mb-2">
+                    <span className="text-muted-foreground">Overall Progress</span>
+                    <span className="font-medium">
+                      {completedTasks} / {totalTasks} tasks ({Math.round(progress)}%)
+                    </span>
+                  </div>
+                  <Progress value={progress} className="h-2" />
                 </div>
-                <div className="text-center">
-                  <p className="text-2xl font-bold text-blue-500">{inProgressBatches.length}</p>
-                  <p className="text-sm text-muted-foreground">In Progress</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-2xl font-bold text-success">{completedBatches.length}</p>
-                  <p className="text-sm text-muted-foreground">Completed</p>
+
+                <div className="grid grid-cols-3 gap-4 pt-4 border-t border-border">
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-foreground">{availableBatches.length}</p>
+                    <p className="text-sm text-muted-foreground">Available</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-blue-400">{inProgressBatches.length}</p>
+                    <p className="text-sm text-muted-foreground">In Progress</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-success">{completedBatches.length}</p>
+                    <p className="text-sm text-muted-foreground">Completed</p>
+                  </div>
                 </div>
               </div>
             </CardContent>
@@ -134,16 +150,16 @@ export default function WorkflowDetailPage({ params }: { params: Promise<{ id: s
           </TabsList>
 
           <TabsContent value="all">
-            <BatchList batches={workflowBatches} workflowId={workflow.id} />
+            <BatchList batches={workflowBatches} />
           </TabsContent>
           <TabsContent value="available">
-            <BatchList batches={availableBatches} workflowId={workflow.id} />
+            <BatchList batches={availableBatches} />
           </TabsContent>
           <TabsContent value="in-progress">
-            <BatchList batches={inProgressBatches} workflowId={workflow.id} />
+            <BatchList batches={inProgressBatches} />
           </TabsContent>
           <TabsContent value="completed">
-            <BatchList batches={completedBatches} workflowId={workflow.id} />
+            <BatchList batches={completedBatches} />
           </TabsContent>
         </Tabs>
       </main>
@@ -151,7 +167,7 @@ export default function WorkflowDetailPage({ params }: { params: Promise<{ id: s
   )
 }
 
-function BatchList({ batches, workflowId }: { batches: typeof import("@/lib/dummy-data").batches; workflowId: string }) {
+function BatchList({ batches }: { batches: typeof import("@/lib/dummy-data").batches }) {
   if (batches.length === 0) {
     return (
       <Card className="border-border bg-card">
@@ -180,14 +196,15 @@ function BatchList({ batches, workflowId }: { batches: typeof import("@/lib/dumm
                 <p className="text-sm text-muted-foreground line-clamp-1">
                   {batch.description}
                 </p>
-                <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
-                  <span className="flex items-center gap-1">
-                    <ListTodo className="h-3 w-3" />
-                    {batch.tasksTotal} tasks
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <Clock className="h-3 w-3" />
-                    ~{batch.workloadEstimate}h
+                <div className="flex items-center gap-4 mt-2">
+                  <div className="flex-1 max-w-xs">
+                    <Progress
+                      value={(batch.tasksCompleted / batch.tasksTotal) * 100}
+                      className="h-1.5"
+                    />
+                  </div>
+                  <span className="text-xs text-muted-foreground">
+                    {batch.tasksCompleted}/{batch.tasksTotal} tasks
                   </span>
                 </div>
               </div>

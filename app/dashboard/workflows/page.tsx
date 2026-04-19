@@ -5,6 +5,7 @@ import Link from "next/link"
 import { Filter, Layers, ListTodo, ArrowRight } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Progress } from "@/components/ui/progress"
 import {
   Select,
   SelectContent,
@@ -13,7 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { TopBar } from "@/components/top-bar"
-import { TaskTypeBadge } from "@/components/status-badge"
+import { PriorityBadge, TaskTypeBadge } from "@/components/status-badge"
 import { workflows, batches } from "@/lib/dummy-data"
 import type { WorkflowType } from "@/lib/types"
 
@@ -29,8 +30,8 @@ export default function WorkflowsPage() {
     return matchesType && matchesStatus
   })
 
-  // Sort alphabetically by name
-  const sortedWorkflows = [...filteredWorkflows].sort((a, b) => a.name.localeCompare(b.name))
+  // Sort by priority (highest first)
+  const sortedWorkflows = [...filteredWorkflows].sort((a, b) => b.priority - a.priority)
 
   // Get batches for a workflow
   const getBatchesForWorkflow = (workflowId: string) => {
@@ -85,6 +86,8 @@ export default function WorkflowsPage() {
               const workflowBatches = getBatchesForWorkflow(workflow.id)
               const activeBatches = workflowBatches.filter(b => b.status === "in-progress")
               const totalTasks = workflowBatches.reduce((sum, b) => sum + b.tasksTotal, 0)
+              const completedTasks = workflowBatches.reduce((sum, b) => sum + b.tasksCompleted, 0)
+              const progress = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0
 
               return (
                 <Card key={workflow.id} className="border-border bg-card">
@@ -92,6 +95,7 @@ export default function WorkflowsPage() {
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
+                          <PriorityBadge priority={workflow.priority} />
                           <TaskTypeBadge type={workflow.type} className="text-[10px]" />
                           {!workflow.isActive && (
                             <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
@@ -127,6 +131,17 @@ export default function WorkflowsPage() {
                   {workflowBatches.length > 0 && (
                     <CardContent>
                       <div className="space-y-3">
+                        {/* Progress Bar */}
+                        <div>
+                          <div className="flex items-center justify-between text-xs mb-1">
+                            <span className="text-muted-foreground">Overall Progress</span>
+                            <span className="font-medium">
+                              {completedTasks} / {totalTasks} tasks ({Math.round(progress)}%)
+                            </span>
+                          </div>
+                          <Progress value={progress} className="h-1.5" />
+                        </div>
+
                         {/* Active Batches Preview */}
                         {activeBatches.length > 0 && (
                           <div className="pt-2 border-t border-border">
@@ -135,7 +150,7 @@ export default function WorkflowsPage() {
                               {activeBatches.slice(0, 3).map((batch) => (
                                 <Link
                                   key={batch.id}
-                                  href={`/dashboard/workflows/${workflow.id}`}
+                                  href={`/dashboard/batches/${batch.id}`}
                                   className="text-xs px-2 py-1 rounded bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
                                 >
                                   {batch.title}
@@ -147,6 +162,13 @@ export default function WorkflowsPage() {
                                 </span>
                               )}
                             </div>
+                          </div>
+                        )}
+
+                        {/* Empty State for Workflows with No Batches */}
+                        {workflowBatches.length === 0 && (
+                          <div className="py-3 text-center text-sm text-muted-foreground">
+                            No batches available yet
                           </div>
                         )}
                       </div>

@@ -3,13 +3,14 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { Eye, EyeOff, Mail, Lock, AlertCircle } from "lucide-react"
+import { Eye, EyeOff, Mail, Lock } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { InputGroup, InputGroupInput, InputGroupAddon } from "@/components/ui/input-group"
-import { validateCredentials } from "@/lib/dummy-data"
 
 export default function LoginPage() {
   const router = useRouter()
@@ -17,27 +18,13 @@ export default function LoginPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState("")
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
-    setError("")
     
     // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 500))
-    
-    // Validate against seeded credentials
-    const user = validateCredentials(email, password)
-    
-    if (!user) {
-      setError("Invalid email or password. Please use test credentials from the seeded data.")
-      setIsLoading(false)
-      return
-    }
-    
-    // Store email for OTP verification
-    sessionStorage.setItem("pendingAuthEmail", email)
+    await new Promise(resolve => setTimeout(resolve, 1000))
     
     // Navigate to OTP verification
     router.push("/verify-otp")
@@ -67,13 +54,6 @@ export default function LoginPage() {
           <CardContent>
             <form onSubmit={handleLogin}>
               <FieldGroup className="gap-5">
-                {error && (
-                  <div className="flex items-start gap-2 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
-                    <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                    <span>{error}</span>
-                  </div>
-                )}
-
                 <Field>
                   <FieldLabel htmlFor="email">Email Address</FieldLabel>
                   <InputGroup>
@@ -167,16 +147,12 @@ export default function LoginPage() {
                 </span>
               </div>
             </div>
-            
-            {/* Test Credentials Hint */}
-            <div className="w-full p-3 rounded-lg bg-secondary/50 border border-border">
-              <p className="text-xs font-medium text-foreground mb-2">Test Credentials:</p>
-              <div className="space-y-1 text-xs text-muted-foreground">
-                <p>Annotator: alex.chen@labelforge.ai / annotator123!</p>
-                <p>Reviewer: sarah.johnson@labelforge.ai / reviewer123!</p>
-                <p>Admin: michael.park@labelforge.ai / admin123!</p>
-              </div>
-            </div>
+            <p className="text-center text-sm text-muted-foreground">
+              Need an account?{" "}
+              <Link href="/contact" className="text-primary hover:text-primary/80 font-medium">
+                Contact your admin
+              </Link>
+            </p>
           </CardFooter>
         </Card>
 

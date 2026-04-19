@@ -114,21 +114,6 @@ export const users: User[] = [
   additionalAnnotator,
 ]
 
-// Authentication helpers - only seeded credentials work
-export function validateCredentials(email: string, password: string): User | null {
-  const user = users.find(
-    (u) => u.email.toLowerCase() === email.toLowerCase() && u.testPassword === password
-  )
-  return user || null
-}
-
-export function validateOtp(email: string, otp: string): User | null {
-  const user = users.find(
-    (u) => u.email.toLowerCase() === email.toLowerCase() && u.testOtp === otp
-  )
-  return user || null
-}
-
 // ============================================
 // WORKFLOWS
 // ============================================
@@ -140,6 +125,7 @@ export const workflows: Workflow[] = [
     name: "Agentic AI Evaluation",
     description: "Evaluate and train agentic AI behaviors through complex task completion",
     type: "agentic-ai",
+    priority: 0.95,
     isActive: true,
     batchCount: 2,
     taskCount: 80,
@@ -150,6 +136,7 @@ export const workflows: Workflow[] = [
     name: "LLM Training Data",
     description: "Generate high-quality training data for language model improvements",
     type: "llm-training",
+    priority: 0.55,
     isActive: true,
     batchCount: 1,
     taskCount: 100,
@@ -160,6 +147,7 @@ export const workflows: Workflow[] = [
     name: "Multimodal Assessment",
     description: "Evaluate alignment between images, text, and other modalities",
     type: "multimodal",
+    priority: 0.5,
     isActive: true,
     batchCount: 0,
     taskCount: 0,
@@ -170,6 +158,7 @@ export const workflows: Workflow[] = [
     name: "Red Teaming Initiative",
     description: "Identify vulnerabilities and safety issues in AI models",
     type: "red-teaming",
+    priority: 1.0,
     isActive: true,
     batchCount: 1,
     taskCount: 30,
@@ -180,6 +169,7 @@ export const workflows: Workflow[] = [
     name: "Benchmarking Suite",
     description: "Compare model responses against baseline benchmarks",
     type: "benchmarking",
+    priority: 0.25,
     isActive: true,
     batchCount: 0,
     taskCount: 0,
@@ -190,6 +180,7 @@ export const workflows: Workflow[] = [
     name: "Preference Ranking",
     description: "Rank model outputs based on helpfulness, accuracy, and safety",
     type: "preference-ranking",
+    priority: 0.75,
     isActive: true,
     batchCount: 0,
     taskCount: 0,
@@ -200,6 +191,7 @@ export const workflows: Workflow[] = [
     name: "Code Evaluation",
     description: "Evaluate quality and correctness of generated code",
     type: "evaluation",
+    priority: 0.8,
     isActive: true,
     batchCount: 0,
     taskCount: 0,
