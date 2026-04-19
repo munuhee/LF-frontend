@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { Calendar, Clock, Filter } from "lucide-react"
+import { Clock, Filter, Workflow } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
@@ -16,7 +16,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { TopBar } from "@/components/top-bar"
 import { StatusBadge, PriorityBadge, TaskTypeBadge } from "@/components/status-badge"
-import { batches } from "@/lib/dummy-data"
+import { batches, currentUser } from "@/lib/dummy-data"
 import type { BatchStatus } from "@/lib/types"
 
 export default function BatchesPage() {
@@ -82,16 +82,16 @@ export default function BatchesPage() {
           </TabsList>
 
           <TabsContent value="all">
-            <BatchList batches={sortedBatches} />
+            <BatchList batches={sortedBatches} showAdminInfo={currentUser.role === "admin"} />
           </TabsContent>
           <TabsContent value="available">
-            <BatchList batches={availableBatches} />
+            <BatchList batches={availableBatches} showAdminInfo={currentUser.role === "admin"} />
           </TabsContent>
           <TabsContent value="in-progress">
-            <BatchList batches={inProgressBatches} />
+            <BatchList batches={inProgressBatches} showAdminInfo={currentUser.role === "admin"} />
           </TabsContent>
           <TabsContent value="completed">
-            <BatchList batches={completedBatches} />
+            <BatchList batches={completedBatches} showAdminInfo={currentUser.role === "admin"} />
           </TabsContent>
         </Tabs>
       </main>
@@ -99,7 +99,12 @@ export default function BatchesPage() {
   )
 }
 
-function BatchList({ batches }: { batches: typeof import("@/lib/dummy-data").batches }) {
+interface BatchListProps {
+  batches: typeof import("@/lib/dummy-data").batches
+  showAdminInfo?: boolean
+}
+
+function BatchList({ batches, showAdminInfo = false }: BatchListProps) {
   if (batches.length === 0) {
     return (
       <Card className="border-border bg-card">
@@ -130,9 +135,15 @@ function BatchList({ batches }: { batches: typeof import("@/lib/dummy-data").bat
                   </Link>
                   <TaskTypeBadge type={batch.taskType} className="text-[10px] px-1.5 py-0" />
                 </div>
-                <p className="text-xs text-muted-foreground truncate">
-                  {batch.description}
-                </p>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Link 
+                    href={`/dashboard/workflows/${batch.workflowId}`}
+                    className="flex items-center gap-1 hover:text-primary"
+                  >
+                    <Workflow className="h-3 w-3" />
+                    {batch.workflowName}
+                  </Link>
+                </div>
               </div>
 
               {/* Progress */}
@@ -150,10 +161,6 @@ function BatchList({ batches }: { batches: typeof import("@/lib/dummy-data").bat
 
               {/* Meta & Status */}
               <div className="flex items-center gap-3 flex-shrink-0">
-                <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                  <Calendar className="h-3 w-3" />
-                  {new Date(batch.deadline).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-                </span>
                 <span className="flex items-center gap-1 text-xs text-muted-foreground">
                   <Clock className="h-3 w-3" />
                   {batch.workloadEstimate}h

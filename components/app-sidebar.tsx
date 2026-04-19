@@ -6,12 +6,12 @@ import {
   LayoutDashboard,
   Layers,
   ListTodo,
-  Clock,
   CheckSquare,
   BarChart3,
   Settings,
   HelpCircle,
   LogOut,
+  Workflow,
 } from "lucide-react"
 import {
   Sidebar,
@@ -30,6 +30,7 @@ import { currentUser } from "@/lib/dummy-data"
 const getNavItems = (role: string) => {
   const baseItems = [
     { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
+    { title: "Workflows", url: "/dashboard/workflows", icon: Workflow },
     { title: "Batches", url: "/dashboard/batches", icon: Layers },
   ]
 
@@ -37,7 +38,6 @@ const getNavItems = (role: string) => {
     return [
       ...baseItems,
       { title: "My Tasks", url: "/dashboard/tasks", icon: ListTodo },
-      { title: "Sessions", url: "/dashboard/sessions", icon: Clock },
     ]
   }
 
@@ -53,7 +53,6 @@ const getNavItems = (role: string) => {
   return [
     ...baseItems,
     { title: "Tasks", url: "/dashboard/tasks", icon: ListTodo },
-    { title: "Sessions", url: "/dashboard/sessions", icon: Clock },
     { title: "Reviews", url: "/dashboard/reviews", icon: CheckSquare },
     { title: "Reports", url: "/dashboard/reports", icon: BarChart3 },
   ]

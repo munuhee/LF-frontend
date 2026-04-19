@@ -1,6 +1,6 @@
 export type UserRole = "annotator" | "reviewer" | "admin"
 
-export type TaskType =
+export type WorkflowType =
   | "agentic-ai"
   | "llm-training"
   | "multimodal"
@@ -10,10 +10,12 @@ export type TaskType =
   | "red-teaming"
   | "data-collection"
 
+export type TaskType = WorkflowType
+
 export type BatchStatus = "available" | "in-progress" | "completed" | "pending-review"
 
 export type TaskStatus =
-  | "not-started"
+  | "unclaimed"
   | "in-progress"
   | "paused"
   | "submitted"
@@ -32,27 +34,46 @@ export interface User {
   role: UserRole
   department?: string
   joinedAt: string
+  // Test credentials for testing flows
+  testPassword?: string
+  testOtp?: string
+}
+
+export interface Workflow {
+  id: string
+  name: string
+  description: string
+  type: WorkflowType
+  priority: Priority
+  isActive: boolean
+  batchCount: number
+  taskCount: number
+  createdAt: string
 }
 
 export interface Batch {
   id: string
+  workflowId: string
+  workflowName: string
   title: string
   description: string
   taskType: TaskType
   priority: Priority // 0-1 decimal
-  deadline: string
   workloadEstimate: number
   status: BatchStatus
   tasksTotal: number
   tasksCompleted: number
   createdAt: string
-  assignedTo?: string[]
+  // Admin only - not visible to annotators/reviewers
+  assignedAnnotatorCount?: number
 }
 
 export interface Task {
   id: string
   batchId: string
   batchTitle: string
+  workflowId: string
+  workflowName: string
   title: string
   description: string
   taskType: TaskType
@@ -64,23 +85,19 @@ export interface Task {
   startedAt?: string
   completedAt?: string
   submittedAt?: string
-  assignedTo: string
-  reviewedBy?: string
+  // Task ownership
+  annotatorId?: string
+  annotatorEmail?: string
+  reviewerId?: string
+  reviewerEmail?: string
   feedback?: string
   qualityScore?: number
-}
-
-export interface Session {
-  id: string
-  taskId: string
-  taskTitle: string
-  batchId: string
-  batchTitle: string
-  startTime: string
-  endTime?: string
-  duration: number
-  status: "active" | "paused" | "completed"
-  eventsRecorded: number
+  // Extension data (from browser extension)
+  extensionData?: {
+    activityData?: Record<string, unknown>
+    screenshots?: string[]
+    totalToolUsageMinutes?: number
+  }
 }
 
 export interface Review {
@@ -90,8 +107,10 @@ export interface Review {
   batchId: string
   batchTitle: string
   annotatorId: string
+  annotatorEmail: string
   annotatorName: string
   reviewerId?: string
+  reviewerEmail?: string
   reviewerName?: string
   status: "pending" | "in-review" | "approved" | "rejected" | "revision-requested"
   submittedAt: string
@@ -107,7 +126,7 @@ export interface Review {
 
 export interface Notification {
   id: string
-  type: "batch-assigned" | "task-approved" | "task-rejected" | "review-needed" | "deadline-warning" | "system"
+  type: "batch-assigned" | "task-approved" | "task-rejected" | "review-needed" | "priority-warning" | "system"
   title: string
   message: string
   read: boolean
@@ -118,23 +137,46 @@ export interface Notification {
 export interface DashboardStats {
   availableBatches: number
   activeTasks: number
-  completedSessions: number
+  completedTasks: number
   signedOffTasks: number
   pendingReviews: number
   averageQualityScore: number
+}
+
+export interface AdminStats {
+  totalAnnotators: number
+  totalReviewers: number
+  totalTasksCompleted: number
+  totalTasksPending: number
+  averageTaskTime: number
+  dailyToolUsageHours: number
+}
+
+export interface AnnotatorPerformance {
+  id: string
+  name: string
+  email: string
+  tasksCompleted: number
+  averageQuality: number
+  averageTimeMinutes: number
+  totalToolUsageHours: number
+}
+
+export interface ReviewerActivity {
+  id: string
+  name: string
+  email: string
+  reviewsCompleted: number
+  averageReviewTime: number
+  approvalRate: number
 }
 
 export interface AnalyticsData {
   tasksCompletedByDay: { date: string; count: number }[]
   tasksByType: { type: TaskType; count: number }[]
   qualityScoresTrend: { date: string; score: number }[]
-  annotatorPerformance: {
-    id: string
-    name: string
-    tasksCompleted: number
-    averageQuality: number
-    averageTime: number
-  }[]
+  annotatorPerformance: AnnotatorPerformance[]
+  reviewerActivity: ReviewerActivity[]
 }
 
 // Helper to convert decimal priority to display format (P0-P4)
@@ -153,4 +195,12 @@ export function priorityToColor(priority: Priority): string {
   if (priority >= 0.5) return "bg-yellow-500 text-black"
   if (priority >= 0.3) return "bg-blue-500 text-white"
   return "bg-muted text-muted-foreground"
+}
+
+// Helper to check if reviewer has reached task limit
+export function isReviewerAtTaskLimit(reviewerId: string, activeReviews: Review[]): boolean {
+  const activeCount = activeReviews.filter(
+    r => r.reviewerId === reviewerId && r.status === "in-review"
+  ).length
+  return activeCount >= 2
 }

@@ -26,7 +26,8 @@ export function StatusBadge({ status, className }: StatusBadgeProps) {
         return "bg-orange-500/10 text-orange-400 border-orange-500/20 hover:bg-orange-500/20"
       case "paused":
         return "bg-muted text-muted-foreground border-border hover:bg-muted/80"
-      case "not-started":
+      case "unclaimed":
+        return "bg-secondary text-secondary-foreground border-border hover:bg-secondary/80"
       default:
         return "bg-secondary text-secondary-foreground border-border hover:bg-secondary/80"
     }
