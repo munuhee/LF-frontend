@@ -11,24 +11,29 @@ import {
   Square,
   Send,
   MessageSquare,
-  User,
-  Workflow,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Separator } from "@/components/ui/separator"
 import { TopBar } from "@/components/top-bar"
-import { StatusBadge, PriorityBadge, TaskTypeBadge } from "@/components/status-badge"
-import { tasks, reviews, currentUser } from "@/lib/dummy-data"
+import { StatusBadge, TaskTypeBadge } from "@/components/status-badge"
+import { Workflow as WorkflowIcon } from "lucide-react"
+import { tasks, reviews, defaultUser } from "@/lib/dummy-data"
+import { useAuth } from "@/lib/auth-context"
 
 export default function TaskDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { user } = useAuth()
+  const currentUser = user || defaultUser
   const { id } = use(params)
   const task = tasks.find((t) => t.id === id)
   const taskReview = reviews.find((r) => r.taskId === id)
   
   const [isRunning, setIsRunning] = useState(task?.status === "in-progress")
   const [notes, setNotes] = useState("")
+  const [expandedScreenshots, setExpandedScreenshots] = useState(false)
 
   if (!task) {
     return (
@@ -59,7 +64,15 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
   const handleStartTask = () => {
     setIsRunning(true)
     if (task.externalUrl) {
-      window.open(task.externalUrl, "_blank")
+      // Open external link and attach event listeners for extension
+      const externalWindow = window.open(task.externalUrl, "_blank")
+      if (externalWindow) {
+        // Fire custom event for extension to listen to
+        const event = new CustomEvent("labelforge:taskStarted", {
+          detail: { taskId: task.id, taskType: task.taskType },
+        })
+        window.dispatchEvent(event)
+      }
     }
   }
 
@@ -67,6 +80,12 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
   const isReviewer = currentUser.role === "reviewer"
   const isAdmin = currentUser.role === "admin"
   const isMyTask = task.annotatorId === currentUser.id
+
+  // Display first 5 screenshots by default
+  const visibleScreenshots = expandedScreenshots 
+    ? task.screenshots 
+    : task.screenshots?.slice(0, 5)
+  const hasMoreScreenshots = (task.screenshots?.length || 0) > 5
 
   return (
     <>
@@ -92,21 +111,24 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
                     <div className="flex items-center gap-3 mb-2">
                       <TaskTypeBadge type={task.taskType} />
                       <StatusBadge status={task.status} />
-                      <PriorityBadge priority={task.priority} />
                     </div>
                     <CardTitle className="text-xl">{task.title}</CardTitle>
-                    <CardDescription className="mt-1 flex items-center gap-2">
-                      <Link 
-                        href={`/dashboard/workflows/${task.workflowId}`}
-                        className="flex items-center gap-1 text-primary hover:underline"
-                      >
-                        <Workflow className="h-4 w-4" />
-                        {task.workflowName}
-                      </Link>
-                      <span className="text-muted-foreground/50">|</span>
-                      <Link href={`/dashboard/batches/${task.batchId}`} className="hover:text-primary">
-                        {task.batchTitle}
-                      </Link>
+                    <CardDescription className="mt-1 space-y-1">
+                      <div>
+                        <Link 
+                          href={`/dashboard/workflows/${task.workflowId}`}
+                          className="text-primary hover:underline text-sm"
+                        >
+                          {task.workflowName}
+                        </Link>
+                        <span className="text-muted-foreground/50 mx-2">•</span>
+                        <Link 
+                          href={`/dashboard/batches/${task.batchId}`} 
+                          className="text-primary hover:underline text-sm"
+                        >
+                          {task.batchTitle}
+                        </Link>
+                      </div>
                     </CardDescription>
                   </div>
                 </div>
@@ -143,8 +165,8 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
                     {task.startedAt && (
                       <div>
                         <p className="text-xs text-muted-foreground mb-1">Started</p>
-                        <p className="text-sm font-medium">
-                          {new Date(task.startedAt).toLocaleString()}
+                        <p className="text-sm font-medium text-xs">
+                          {new Date(task.startedAt).toLocaleDateString()}
                         </p>
                       </div>
                     )}
@@ -152,6 +174,32 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
                 </div>
               </CardContent>
             </Card>
+
+            {/* External Link for Agentic AI Tasks */}
+            {task.externalUrl && task.taskType === "agentic-ai" && (
+              <Card className="border-border bg-card border-primary/50">
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <ExternalLink className="h-4 w-4" />
+                    Task Environment
+                  </CardTitle>
+                  <CardDescription>
+                    Access the external website where you complete this task. The LabelForge extension will automatically track your activity.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button asChild size="lg" className="w-full gap-2">
+                    <Link href={task.externalUrl} target="_blank">
+                      <ExternalLink className="h-4 w-4" />
+                      Open External Link in New Tab
+                    </Link>
+                  </Button>
+                  <p className="text-xs text-muted-foreground mt-3">
+                    The LabelForge browser extension will listen for events and capture your interactions on the external website.
+                  </p>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Task Controls (only for annotators working on their own tasks) */}
             {isAnnotator && isMyTask && !["approved", "rejected"].includes(task.status) && (
@@ -166,7 +214,7 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 flex-wrap">
                     {!isRunning ? (
                       <Button onClick={handleStartTask} className="gap-2">
                         <Play className="h-4 w-4" />
@@ -183,14 +231,6 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
                           Stop
                         </Button>
                       </>
-                    )}
-                    {task.externalUrl && (
-                      <Button variant="outline" asChild>
-                        <Link href={task.externalUrl} target="_blank" className="gap-2">
-                          <ExternalLink className="h-4 w-4" />
-                          Open External Site
-                        </Link>
-                      </Button>
                     )}
                   </div>
 
@@ -224,6 +264,77 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
                     <Send className="h-4 w-4" />
                     Submit for Review
                   </Button>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Submission Data - For Agentic AI Tasks */}
+            {task.submissionData && (
+              <Card className="border-border bg-card">
+                <CardHeader>
+                  <CardTitle className="text-lg">Submission Data</CardTitle>
+                  <CardDescription>
+                    JSON data captured during task completion for AI model learning
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="bg-secondary/50 rounded-lg p-4 overflow-x-auto">
+                    <pre className="text-xs font-mono text-foreground whitespace-pre-wrap break-words">
+                      {JSON.stringify(task.submissionData, null, 2)}
+                    </pre>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Screenshots Gallery */}
+            {task.screenshots && task.screenshots.length > 0 && (
+              <Card className="border-border bg-card">
+                <CardHeader>
+                  <CardTitle className="text-lg">Task Screenshots ({task.screenshots.length})</CardTitle>
+                  <CardDescription>
+                    Visual record of task completion steps
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {/* Display visible screenshots */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {visibleScreenshots?.map((screenshot, index) => (
+                        <div
+                          key={index}
+                          className="rounded-lg overflow-hidden border border-border bg-secondary/30 aspect-video"
+                        >
+                          <img
+                            src={screenshot}
+                            alt={`Screenshot ${index + 1}`}
+                            className="w-full h-full object-cover hover:scale-105 transition-transform cursor-pointer"
+                          />
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Show More/Less Button for screenshots > 5 */}
+                    {hasMoreScreenshots && (
+                      <Button
+                        variant="outline"
+                        className="w-full gap-2"
+                        onClick={() => setExpandedScreenshots(!expandedScreenshots)}
+                      >
+                        {expandedScreenshots ? (
+                          <>
+                            <ChevronUp className="h-4 w-4" />
+                            Show Less ({task.screenshots.length - 5} hidden)
+                          </>
+                        ) : (
+                          <>
+                            <ChevronDown className="h-4 w-4" />
+                            View All ({task.screenshots.length} total)
+                          </>
+                        )}
+                      </Button>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             )}
@@ -277,8 +388,11 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
                     )}
 
                     {taskReview.feedback && (
-                      <div className="p-4 rounded-lg bg-secondary/30">
-                        <p className="text-sm text-foreground">{taskReview.feedback}</p>
+                      <div>
+                        <h5 className="text-sm font-medium text-foreground mb-2">Reviewer Comments</h5>
+                        <p className="text-sm text-muted-foreground bg-secondary/30 rounded-lg p-3">
+                          {taskReview.feedback}
+                        </p>
                       </div>
                     )}
                   </div>
@@ -289,64 +403,40 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
 
           {/* Sidebar */}
           <div className="space-y-6">
-            {/* Task Ownership */}
+            {/* Task Info Card */}
             <Card className="border-border bg-card">
               <CardHeader>
-                <CardTitle className="text-lg">Task Ownership</CardTitle>
+                <CardTitle className="text-base">Task Info</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 {task.annotatorEmail && (
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-primary/10">
-                      <User className="h-4 w-4 text-primary" />
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">Annotator</p>
-                      <p className="text-sm font-medium">{task.annotatorEmail}</p>
-                    </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">Assigned To</p>
+                    <p className="text-sm font-medium">{task.annotatorEmail}</p>
                   </div>
                 )}
                 {task.reviewerEmail && (
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-success/10">
-                      <User className="h-4 w-4 text-success" />
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">Reviewer</p>
-                      <p className="text-sm font-medium">{task.reviewerEmail}</p>
-                    </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">Reviewed By</p>
+                    <p className="text-sm font-medium">{task.reviewerEmail}</p>
                   </div>
                 )}
-                {!task.annotatorEmail && !task.reviewerEmail && (
-                  <p className="text-sm text-muted-foreground text-center py-2">
-                    Task not yet assigned
-                  </p>
+                {task.submittedAt && (
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">Submitted</p>
+                    <p className="text-sm font-medium">
+                      {new Date(task.submittedAt).toLocaleDateString()}
+                    </p>
+                  </div>
                 )}
-              </CardContent>
-            </Card>
-
-            {/* Quick Actions */}
-            <Card className="border-border bg-card">
-              <CardHeader>
-                <CardTitle className="text-lg">Quick Actions</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <Button variant="outline" className="w-full justify-start" asChild>
-                  <Link href={`/dashboard/workflows/${task.workflowId}`}>
-                    View Workflow
-                  </Link>
-                </Button>
-                <Button variant="outline" className="w-full justify-start" asChild>
-                  <Link href={`/dashboard/batches/${task.batchId}`}>
-                    View Batch Details
-                  </Link>
-                </Button>
-                <Button variant="outline" className="w-full justify-start">
-                  Report an Issue
-                </Button>
-                <Button variant="outline" className="w-full justify-start">
-                  Request Help
-                </Button>
+                {task.completedAt && (
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">Completed</p>
+                    <p className="text-sm font-medium">
+                      {new Date(task.completedAt).toLocaleDateString()}
+                    </p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>

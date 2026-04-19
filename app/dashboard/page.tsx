@@ -27,10 +27,11 @@ import {
   tasks,
   reviews,
   notifications,
-  currentUser,
+  defaultUser,
   workflows,
   getTasksForUser,
 } from "@/lib/dummy-data"
+import { useAuth } from "@/lib/auth-context"
 import {
   Table,
   TableBody,
@@ -71,6 +72,8 @@ const getStatsForRole = (role: string) => {
 }
 
 export default function DashboardPage() {
+  const { user } = useAuth()
+  const currentUser = user || defaultUser
   const statCards = getStatsForRole(currentUser.role)
   const activeWorkflows = workflows.filter(w => w.isActive && w.batchCount > 0).slice(0, 3)
   const activeBatches = batches.filter(b => b.status === "in-progress").slice(0, 3)

@@ -91,6 +91,10 @@ export interface Task {
   reviewerEmail?: string
   feedback?: string
   qualityScore?: number
+  // Submission data for agentic AI learning
+  submissionData?: Record<string, unknown>
+  // Screenshots from task completion
+  screenshots?: string[]
   // Extension data (from browser extension)
   extensionData?: {
     activityData?: Record<string, unknown>

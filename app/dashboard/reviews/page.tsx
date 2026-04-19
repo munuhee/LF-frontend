@@ -32,11 +32,14 @@ import {
 } from "@/components/ui/collapsible"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { TopBar } from "@/components/top-bar"
-import { reviews, currentUser, canReviewerTakeMoreReviews } from "@/lib/dummy-data"
+import { reviews, defaultUser, canReviewerTakeMoreReviews } from "@/lib/dummy-data"
+import { useAuth } from "@/lib/auth-context"
 
 type ReviewStatus = "pending" | "in-review" | "approved" | "rejected" | "revision-requested"
 
 export default function ReviewsPage() {
+  const { user } = useAuth()
+  const currentUser = user || defaultUser
   const [statusFilter, setStatusFilter] = useState<ReviewStatus | "all">("all")
   const [expandedFeedback, setExpandedFeedback] = useState<string | null>(null)
 

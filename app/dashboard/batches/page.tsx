@@ -15,10 +15,13 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { TopBar } from "@/components/top-bar"
 import { StatusBadge, PriorityBadge, TaskTypeBadge } from "@/components/status-badge"
-import { batches, currentUser } from "@/lib/dummy-data"
+import { batches, defaultUser } from "@/lib/dummy-data"
+import { useAuth } from "@/lib/auth-context"
 import type { BatchStatus } from "@/lib/types"
 
 export default function BatchesPage() {
+  const { user } = useAuth()
+  const currentUser = user || defaultUser
   const [taskTypeFilter, setTaskTypeFilter] = useState<string>("all")
   const [statusFilter, setStatusFilter] = useState<BatchStatus | "all">("all")
 

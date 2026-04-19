@@ -8,12 +8,13 @@ import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { TopBar } from "@/components/top-bar"
 import { StatusBadge, PriorityBadge, TaskTypeBadge } from "@/components/status-badge"
-import { workflows, batches } from "@/lib/dummy-data"
+import { workflows, batches, tasks } from "@/lib/dummy-data"
 
 export default function WorkflowDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const workflow = workflows.find((w) => w.id === id)
   const workflowBatches = batches.filter((b) => b.workflowId === id)
+  const workflowTasks = tasks.filter((t) => t.workflowId === id)
 
   if (!workflow) {
     return (
