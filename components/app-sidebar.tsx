@@ -4,7 +4,6 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
   LayoutDashboard,
-  Layers,
   ListTodo,
   CheckSquare,
   BarChart3,
@@ -31,7 +30,6 @@ const getNavItems = (role: string) => {
   const baseItems = [
     { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
     { title: "Workflows", url: "/dashboard/workflows", icon: Workflow },
-    { title: "Batches", url: "/dashboard/batches", icon: Layers },
   ]
 
   if (role === "annotator") {
@@ -68,13 +66,13 @@ export function AppSidebar() {
   const mainNavItems = getNavItems(currentUser.role)
 
   return (
-    <Sidebar className="border-r border-sidebar-border" collapsible="icon">
+    <Sidebar className="border-r border-border bg-card" collapsible="icon">
       <SidebarHeader className="p-3">
         <Link href="/dashboard" className="flex items-center gap-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary flex-shrink-0">
             <span className="text-sm font-bold text-primary-foreground">LF</span>
           </div>
-          <span className="text-base font-semibold text-sidebar-foreground group-data-[collapsible=icon]:hidden">
+          <span className="text-base font-semibold text-foreground group-data-[collapsible=icon]:hidden">
             LabelForge
           </span>
         </Link>
@@ -93,6 +91,7 @@ export function AppSidebar() {
                       asChild
                       isActive={isActive}
                       tooltip={item.title}
+                      className="text-foreground hover:bg-secondary data-[active=true]:bg-primary data-[active=true]:text-primary-foreground"
                     >
                       <Link href={item.url}>
                         <item.icon className="h-4 w-4" />
@@ -106,7 +105,7 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        <SidebarSeparator />
+        <SidebarSeparator className="bg-border" />
 
         <SidebarGroup>
           <SidebarGroupContent>
@@ -119,6 +118,7 @@ export function AppSidebar() {
                       asChild
                       isActive={isActive}
                       tooltip={item.title}
+                      className="text-foreground hover:bg-secondary data-[active=true]:bg-primary data-[active=true]:text-primary-foreground"
                     >
                       <Link href={item.url}>
                         <item.icon className="h-4 w-4" />
@@ -134,25 +134,25 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="p-3">
-        <SidebarSeparator className="mb-3" />
+        <SidebarSeparator className="mb-3 bg-border" />
         <div className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center">
           <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/20 text-primary text-xs font-medium flex-shrink-0">
             {currentUser.name.split(" ").map((n) => n[0]).join("")}
           </div>
           <div className="flex-1 min-w-0 group-data-[collapsible=icon]:hidden">
-            <p className="text-sm font-medium text-sidebar-foreground truncate">
+            <p className="text-sm font-medium text-foreground truncate">
               {currentUser.name}
             </p>
-            <p className="text-xs text-sidebar-foreground/60 truncate capitalize">
+            <p className="text-xs text-muted-foreground truncate capitalize">
               {currentUser.role}
             </p>
           </div>
           <Link
             href="/"
-            className="p-1.5 rounded-md hover:bg-sidebar-accent transition-colors group-data-[collapsible=icon]:hidden"
+            className="p-1.5 rounded-md hover:bg-secondary transition-colors group-data-[collapsible=icon]:hidden"
             title="Sign out"
           >
-            <LogOut className="h-4 w-4 text-sidebar-foreground/60" />
+            <LogOut className="h-4 w-4 text-muted-foreground" />
           </Link>
         </div>
       </SidebarFooter>

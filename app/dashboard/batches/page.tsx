@@ -2,10 +2,9 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { Clock, Filter, Workflow } from "lucide-react"
+import { Clock, Filter, Workflow, ListTodo } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Progress } from "@/components/ui/progress"
 import {
   Select,
   SelectContent,
@@ -104,7 +103,7 @@ interface BatchListProps {
   showAdminInfo?: boolean
 }
 
-function BatchList({ batches, showAdminInfo = false }: BatchListProps) {
+function BatchList({ batches }: BatchListProps) {
   if (batches.length === 0) {
     return (
       <Card className="border-border bg-card">
@@ -146,17 +145,10 @@ function BatchList({ batches, showAdminInfo = false }: BatchListProps) {
                 </div>
               </div>
 
-              {/* Progress */}
-              <div className="flex items-center gap-3 flex-shrink-0 w-32">
-                <div className="flex-1">
-                  <Progress
-                    value={(batch.tasksCompleted / batch.tasksTotal) * 100}
-                    className="h-1.5"
-                  />
-                </div>
-                <span className="text-xs text-muted-foreground w-12 text-right">
-                  {batch.tasksCompleted}/{batch.tasksTotal}
-                </span>
+              {/* Task count */}
+              <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                <ListTodo className="h-3 w-3" />
+                {batch.tasksTotal} tasks
               </div>
 
               {/* Meta & Status */}
