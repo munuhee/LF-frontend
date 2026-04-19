@@ -20,9 +20,12 @@ import { Textarea } from "@/components/ui/textarea"
 import { Separator } from "@/components/ui/separator"
 import { TopBar } from "@/components/top-bar"
 import { StatusBadge, PriorityBadge, TaskTypeBadge } from "@/components/status-badge"
-import { tasks, reviews, currentUser } from "@/lib/dummy-data"
+import { tasks, reviews, defaultUser } from "@/lib/dummy-data"
+import { useAuth } from "@/lib/auth-context"
 
 export default function TaskDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { user } = useAuth()
+  const currentUser = user || defaultUser
   const { id } = use(params)
   const task = tasks.find((t) => t.id === id)
   const taskReview = reviews.find((r) => r.taskId === id)

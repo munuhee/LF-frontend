@@ -8,9 +8,11 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp"
 import { validateOtp, users } from "@/lib/dummy-data"
+import { useAuth } from "@/lib/auth-context"
 
 export default function VerifyOTPPage() {
   const router = useRouter()
+  const { setUser } = useAuth()
   const [otp, setOtp] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [countdown, setCountdown] = useState(60)
@@ -64,6 +66,9 @@ export default function VerifyOTPPage() {
     
     // Clear session storage
     sessionStorage.removeItem("pendingAuthEmail")
+    
+    // Set the authenticated user in context
+    setUser(user)
     
     // Navigate to dashboard on success
     router.push("/dashboard")

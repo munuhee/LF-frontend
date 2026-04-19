@@ -20,10 +20,13 @@ import {
 } from "@/components/ui/collapsible"
 import { TopBar } from "@/components/top-bar"
 import { StatusBadge, PriorityBadge, TaskTypeBadge } from "@/components/status-badge"
-import { tasks, currentUser, getTasksForUser } from "@/lib/dummy-data"
+import { tasks, defaultUser, getTasksForUser } from "@/lib/dummy-data"
+import { useAuth } from "@/lib/auth-context"
 import type { TaskStatus } from "@/lib/types"
 
 export default function TasksPage() {
+  const { user } = useAuth()
+  const currentUser = user || defaultUser
   const [statusFilter, setStatusFilter] = useState<TaskStatus | "all">("all")
   const [expandedFeedback, setExpandedFeedback] = useState<string | null>(null)
 

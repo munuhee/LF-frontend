@@ -100,9 +100,10 @@ const additionalAnnotator: User = {
   testOtp: "789012",
 }
 
-// CHANGE THIS TO TEST DIFFERENT ROLES
-// Options: testAnnotator1, testAnnotator2, testReviewer1, testReviewer2, testAdmin1, testAdmin2
-export const currentUser: User = testAnnotator1
+// NOTE: currentUser is now determined dynamically from auth context in useAuth() hook
+// Use the useAuth() hook in client components to get the authenticated user
+// For server components, you need to pass user data from a client parent component
+export const defaultUser: User = testAnnotator1
 
 export const users: User[] = [
   testAnnotator1,

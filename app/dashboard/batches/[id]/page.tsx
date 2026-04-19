@@ -10,11 +10,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { TopBar } from "@/components/top-bar"
 import { StatusBadge, PriorityBadge, TaskTypeBadge } from "@/components/status-badge"
 import { CreateTaskModal } from "@/components/create-task-modal"
-import { batches, tasks, currentUser, getUnclaimedTasksFromBatch } from "@/lib/dummy-data"
+import { batches, tasks, defaultUser, getUnclaimedTasksFromBatch } from "@/lib/dummy-data"
+import { useAuth } from "@/lib/auth-context"
 import type { Task } from "@/lib/types"
 
 export default function BatchDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
+  const { user } = useAuth()
+  const currentUser = user || defaultUser
   const batch = batches.find((b) => b.id === id)
   const [batchTasks, setBatchTasks] = useState<Task[]>(tasks.filter((t) => t.batchId === id))
   

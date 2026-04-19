@@ -17,10 +17,13 @@ import {
 } from "@/components/ui/select"
 import { TopBar } from "@/components/top-bar"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
-import { currentUser } from "@/lib/dummy-data"
+import { defaultUser } from "@/lib/dummy-data"
+import { useAuth } from "@/lib/auth-context"
 import { useTheme } from "next-themes"
 
 export default function SettingsPage() {
+  const { user } = useAuth()
+  const currentUser = user || defaultUser
   const { theme, setTheme } = useTheme()
   const [emailNotifications, setEmailNotifications] = useState(true)
   const [pushNotifications, setPushNotifications] = useState(true)

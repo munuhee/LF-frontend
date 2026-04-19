@@ -24,7 +24,8 @@ import {
   SidebarMenuItem,
   SidebarSeparator,
 } from "@/components/ui/sidebar"
-import { currentUser } from "@/lib/dummy-data"
+import { useAuth } from "@/lib/auth-context"
+import { defaultUser } from "@/lib/dummy-data"
 
 const getNavItems = (role: string) => {
   const baseItems = [
@@ -63,6 +64,8 @@ const secondaryNavItems = [
 
 export function AppSidebar() {
   const pathname = usePathname()
+  const { user } = useAuth()
+  const currentUser = user || defaultUser
   const mainNavItems = getNavItems(currentUser.role)
 
   return (
