@@ -2,19 +2,30 @@
 
 import { use } from "react"
 import Link from "next/link"
-import { ArrowLeft, Calendar, Clock, Users, ExternalLink, Play, Pause, CheckCircle } from "lucide-react"
+import { ArrowLeft, Calendar, Clock, Users, ExternalLink, Play, Pause, CheckCircle, Workflow } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { TopBar } from "@/components/top-bar"
 import { StatusBadge, PriorityBadge, TaskTypeBadge } from "@/components/status-badge"
-import { batches, tasks } from "@/lib/dummy-data"
+import { batches, tasks, currentUser, getUnclaimedTasksFromBatch } from "@/lib/dummy-data"
 
 export default function BatchDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const batch = batches.find((b) => b.id === id)
-  const batchTasks = tasks.filter((t) => t.batchId === id)
+  
+  // Get tasks based on role
+  const allBatchTasks = tasks.filter((t) => t.batchId === id)
+  
+  // For annotators: only show their own tasks, not unclaimed ones
+  // Unclaimed tasks are shown separately for claiming
+  const myTasks = currentUser.role === "annotator" 
+    ? allBatchTasks.filter(t => t.annotatorId === currentUser.id)
+    : allBatchTasks
+
+  // Get unclaimed tasks for annotators to claim
+  const unclaimedTasks = getUnclaimedTasksFromBatch(id)
 
   if (!batch) {
     return (
@@ -35,9 +46,9 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
     )
   }
 
-  const notStartedTasks = batchTasks.filter(t => t.status === "not-started")
-  const inProgressTasks = batchTasks.filter(t => t.status === "in-progress")
-  const completedTasks = batchTasks.filter(t => ["submitted", "approved", "completed"].includes(t.status))
+  const inProgressTasks = myTasks.filter(t => ["in-progress", "paused"].includes(t.status))
+  const submittedTasks = myTasks.filter(t => ["submitted", "revision-requested"].includes(t.status))
+  const completedTasks = myTasks.filter(t => ["approved", "rejected"].includes(t.status))
 
   return (
     <>
@@ -64,14 +75,22 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
                     <PriorityBadge priority={batch.priority} />
                   </div>
                   <CardTitle className="text-xl">{batch.title}</CardTitle>
-                  <CardDescription className="mt-2">
-                    {batch.description}
+                  <CardDescription className="mt-2 flex items-center gap-2">
+                    <Link 
+                      href={`/dashboard/workflows/${batch.workflowId}`}
+                      className="flex items-center gap-1 text-primary hover:underline"
+                    >
+                      <Workflow className="h-4 w-4" />
+                      {batch.workflowName}
+                    </Link>
                   </CardDescription>
                 </div>
               </div>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
+                <p className="text-sm text-muted-foreground">{batch.description}</p>
+
                 <div>
                   <div className="flex items-center justify-between text-sm mb-2">
                     <span className="text-muted-foreground">Overall Progress</span>
@@ -87,12 +106,12 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
 
                 <div className="grid grid-cols-3 gap-4 pt-4 border-t border-border">
                   <div className="text-center">
-                    <p className="text-2xl font-bold text-foreground">{notStartedTasks.length}</p>
-                    <p className="text-sm text-muted-foreground">Not Started</p>
+                    <p className="text-2xl font-bold text-foreground">{inProgressTasks.length}</p>
+                    <p className="text-sm text-muted-foreground">Active</p>
                   </div>
                   <div className="text-center">
-                    <p className="text-2xl font-bold text-blue-400">{inProgressTasks.length}</p>
-                    <p className="text-sm text-muted-foreground">In Progress</p>
+                    <p className="text-2xl font-bold text-blue-400">{submittedTasks.length}</p>
+                    <p className="text-sm text-muted-foreground">In Review</p>
                   </div>
                   <div className="text-center">
                     <p className="text-2xl font-bold text-success">{completedTasks.length}</p>
@@ -110,31 +129,28 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
             <CardContent className="space-y-4">
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground flex items-center gap-2">
-                  <Calendar className="h-4 w-4" />
-                  Deadline
-                </span>
-                <span className="text-sm font-medium">
-                  {new Date(batch.deadline).toLocaleDateString()}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground flex items-center gap-2">
                   <Clock className="h-4 w-4" />
                   Est. Workload
                 </span>
                 <span className="text-sm font-medium">{batch.workloadEstimate} hours</span>
               </div>
+              {/* Only show assignee count to admins */}
+              {currentUser.role === "admin" && (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground flex items-center gap-2">
+                    <Users className="h-4 w-4" />
+                    Assigned
+                  </span>
+                  <span className="text-sm font-medium">
+                    {batch.assignedAnnotatorCount || 0} annotators
+                  </span>
+                </div>
+              )}
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground flex items-center gap-2">
-                  <Users className="h-4 w-4" />
-                  Assigned
+                  <Calendar className="h-4 w-4" />
+                  Created
                 </span>
-                <span className="text-sm font-medium">
-                  {batch.assignedTo?.length || 0} annotators
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Created</span>
                 <span className="text-sm font-medium">
                   {new Date(batch.createdAt).toLocaleDateString()}
                 </span>
@@ -143,34 +159,65 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
           </Card>
         </div>
 
-        {/* Tasks List */}
-        <Tabs defaultValue="all" className="space-y-4">
-          <TabsList className="bg-card border border-border">
-            <TabsTrigger value="all">All Tasks ({batchTasks.length})</TabsTrigger>
-            <TabsTrigger value="not-started">Not Started ({notStartedTasks.length})</TabsTrigger>
-            <TabsTrigger value="in-progress">In Progress ({inProgressTasks.length})</TabsTrigger>
-            <TabsTrigger value="completed">Completed ({completedTasks.length})</TabsTrigger>
-          </TabsList>
+        {/* Available Tasks to Claim (for annotators) */}
+        {currentUser.role === "annotator" && unclaimedTasks.length > 0 && (
+          <Card className="border-border bg-card mb-6">
+            <CardHeader>
+              <CardTitle className="text-lg">Available Tasks</CardTitle>
+              <CardDescription>
+                Select a task from this batch to start working on it
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <TaskList tasks={unclaimedTasks} showClaimButton />
+            </CardContent>
+          </Card>
+        )}
 
-          <TabsContent value="all">
-            <TaskList tasks={batchTasks} />
-          </TabsContent>
-          <TabsContent value="not-started">
-            <TaskList tasks={notStartedTasks} />
-          </TabsContent>
-          <TabsContent value="in-progress">
-            <TaskList tasks={inProgressTasks} />
-          </TabsContent>
-          <TabsContent value="completed">
-            <TaskList tasks={completedTasks} />
-          </TabsContent>
-        </Tabs>
+        {/* My Tasks List */}
+        {myTasks.length > 0 && (
+          <Tabs defaultValue="all" className="space-y-4">
+            <TabsList className="bg-card border border-border">
+              <TabsTrigger value="all">My Tasks ({myTasks.length})</TabsTrigger>
+              <TabsTrigger value="active">Active ({inProgressTasks.length})</TabsTrigger>
+              <TabsTrigger value="review">In Review ({submittedTasks.length})</TabsTrigger>
+              <TabsTrigger value="completed">Completed ({completedTasks.length})</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="all">
+              <TaskList tasks={myTasks} />
+            </TabsContent>
+            <TabsContent value="active">
+              <TaskList tasks={inProgressTasks} />
+            </TabsContent>
+            <TabsContent value="review">
+              <TaskList tasks={submittedTasks} />
+            </TabsContent>
+            <TabsContent value="completed">
+              <TaskList tasks={completedTasks} />
+            </TabsContent>
+          </Tabs>
+        )}
+
+        {/* Empty State */}
+        {myTasks.length === 0 && unclaimedTasks.length === 0 && (
+          <Card className="border-border bg-card">
+            <CardContent className="flex flex-col items-center justify-center py-12">
+              <p className="text-muted-foreground">No tasks available in this batch</p>
+            </CardContent>
+          </Card>
+        )}
       </main>
     </>
   )
 }
 
-function TaskList({ tasks }: { tasks: typeof import("@/lib/dummy-data").tasks }) {
+interface TaskListProps {
+  tasks: typeof import("@/lib/dummy-data").tasks
+  showClaimButton?: boolean
+}
+
+function TaskList({ tasks, showClaimButton = false }: TaskListProps) {
   if (tasks.length === 0) {
     return (
       <Card className="border-border bg-card">
@@ -189,9 +236,9 @@ function TaskList({ tasks }: { tasks: typeof import("@/lib/dummy-data").tasks })
             <div className="flex items-center justify-between gap-4">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-3 mb-1">
+                  <PriorityBadge priority={task.priority} />
                   <h4 className="font-medium text-foreground truncate">{task.title}</h4>
                   <StatusBadge status={task.status} />
-                  <PriorityBadge priority={task.priority} />
                 </div>
                 <p className="text-sm text-muted-foreground line-clamp-1">
                   {task.description}
@@ -207,6 +254,13 @@ function TaskList({ tasks }: { tasks: typeof import("@/lib/dummy-data").tasks })
                   {task.qualityScore && (
                     <span className="text-success">Score: {task.qualityScore}%</span>
                   )}
+                  {/* Show ownership info for admins */}
+                  {currentUser.role === "admin" && task.annotatorEmail && (
+                    <span>Annotator: {task.annotatorEmail}</span>
+                  )}
+                  {currentUser.role === "admin" && task.reviewerEmail && (
+                    <span>Reviewer: {task.reviewerEmail}</span>
+                  )}
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -220,16 +274,18 @@ function TaskList({ tasks }: { tasks: typeof import("@/lib/dummy-data").tasks })
                 )}
                 <Button size="sm" asChild>
                   <Link href={`/dashboard/tasks/${task.id}`}>
-                    {task.status === "not-started" ? (
+                    {showClaimButton ? (
                       <>
                         <Play className="h-4 w-4 mr-1" />
-                        Start
+                        Claim
                       </>
                     ) : task.status === "in-progress" ? (
                       <>
                         <Pause className="h-4 w-4 mr-1" />
                         Continue
                       </>
+                    ) : task.status === "revision-requested" ? (
+                      "Revise"
                     ) : (
                       <>
                         <CheckCircle className="h-4 w-4 mr-1" />

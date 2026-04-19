@@ -11,8 +11,8 @@ import {
   Square,
   Send,
   MessageSquare,
-  CheckCircle,
-  XCircle,
+  User,
+  Workflow,
 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -20,12 +20,11 @@ import { Textarea } from "@/components/ui/textarea"
 import { Separator } from "@/components/ui/separator"
 import { TopBar } from "@/components/top-bar"
 import { StatusBadge, PriorityBadge, TaskTypeBadge } from "@/components/status-badge"
-import { tasks, sessions, reviews } from "@/lib/dummy-data"
+import { tasks, reviews, currentUser } from "@/lib/dummy-data"
 
 export default function TaskDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const task = tasks.find((t) => t.id === id)
-  const taskSessions = sessions.filter((s) => s.taskId === id)
   const taskReview = reviews.find((r) => r.taskId === id)
   
   const [isRunning, setIsRunning] = useState(task?.status === "in-progress")
@@ -64,6 +63,11 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
     }
   }
 
+  const isAnnotator = currentUser.role === "annotator"
+  const isReviewer = currentUser.role === "reviewer"
+  const isAdmin = currentUser.role === "admin"
+  const isMyTask = task.annotatorId === currentUser.id
+
   return (
     <>
       <TopBar title={task.title} subtitle={`Task ${task.id}`} />
@@ -91,7 +95,15 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
                       <PriorityBadge priority={task.priority} />
                     </div>
                     <CardTitle className="text-xl">{task.title}</CardTitle>
-                    <CardDescription className="mt-1">
+                    <CardDescription className="mt-1 flex items-center gap-2">
+                      <Link 
+                        href={`/dashboard/workflows/${task.workflowId}`}
+                        className="flex items-center gap-1 text-primary hover:underline"
+                      >
+                        <Workflow className="h-4 w-4" />
+                        {task.workflowName}
+                      </Link>
+                      <span className="text-muted-foreground/50">|</span>
                       <Link href={`/dashboard/batches/${task.batchId}`} className="hover:text-primary">
                         {task.batchTitle}
                       </Link>
@@ -141,8 +153,8 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
               </CardContent>
             </Card>
 
-            {/* Task Controls */}
-            {!["approved", "rejected"].includes(task.status) && (
+            {/* Task Controls (only for annotators working on their own tasks) */}
+            {isAnnotator && isMyTask && !["approved", "rejected"].includes(task.status) && (
               <Card className="border-border bg-card">
                 <CardHeader>
                   <CardTitle className="text-lg">Task Controls</CardTitle>
@@ -158,7 +170,7 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
                     {!isRunning ? (
                       <Button onClick={handleStartTask} className="gap-2">
                         <Play className="h-4 w-4" />
-                        {task.status === "not-started" ? "Start Task" : "Resume Task"}
+                        {task.status === "unclaimed" ? "Start Task" : "Resume Task"}
                       </Button>
                     ) : (
                       <>
@@ -186,7 +198,7 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
                     <div className="p-4 rounded-lg bg-primary/10 border border-primary/20">
                       <div className="flex items-center gap-2 mb-2">
                         <span className="h-2 w-2 rounded-full bg-primary animate-pulse" />
-                        <span className="text-sm font-medium text-primary">Session Active</span>
+                        <span className="text-sm font-medium text-primary">Task Active</span>
                       </div>
                       <p className="text-sm text-muted-foreground">
                         Your activity is being recorded. Complete the task on the external site and return here to submit.
@@ -277,47 +289,38 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
 
           {/* Sidebar */}
           <div className="space-y-6">
-            {/* Session History */}
+            {/* Task Ownership */}
             <Card className="border-border bg-card">
               <CardHeader>
-                <CardTitle className="text-lg">Session History</CardTitle>
-                <CardDescription>Your work sessions for this task</CardDescription>
+                <CardTitle className="text-lg">Task Ownership</CardTitle>
               </CardHeader>
-              <CardContent>
-                {taskSessions.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-4">
-                    No sessions recorded yet
-                  </p>
-                ) : (
-                  <div className="space-y-3">
-                    {taskSessions.map((session) => (
-                      <div
-                        key={session.id}
-                        className="p-3 rounded-lg bg-secondary/30 border border-border"
-                      >
-                        <div className="flex items-center justify-between mb-2">
-                          <span className={`text-xs px-2 py-0.5 rounded-full ${
-                            session.status === "active"
-                              ? "bg-primary/20 text-primary"
-                              : session.status === "paused"
-                              ? "bg-warning/20 text-warning"
-                              : "bg-success/20 text-success"
-                          }`}>
-                            {session.status}
-                          </span>
-                          <span className="text-xs text-muted-foreground">
-                            {formatDuration(Math.floor(session.duration / 60))}
-                          </span>
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          {new Date(session.startTime).toLocaleString()}
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {session.eventsRecorded} events recorded
-                        </p>
-                      </div>
-                    ))}
+              <CardContent className="space-y-4">
+                {task.annotatorEmail && (
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-primary/10">
+                      <User className="h-4 w-4 text-primary" />
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Annotator</p>
+                      <p className="text-sm font-medium">{task.annotatorEmail}</p>
+                    </div>
                   </div>
+                )}
+                {task.reviewerEmail && (
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-success/10">
+                      <User className="h-4 w-4 text-success" />
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Reviewer</p>
+                      <p className="text-sm font-medium">{task.reviewerEmail}</p>
+                    </div>
+                  </div>
+                )}
+                {!task.annotatorEmail && !task.reviewerEmail && (
+                  <p className="text-sm text-muted-foreground text-center py-2">
+                    Task not yet assigned
+                  </p>
                 )}
               </CardContent>
             </Card>
@@ -328,6 +331,11 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
                 <CardTitle className="text-lg">Quick Actions</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
+                <Button variant="outline" className="w-full justify-start" asChild>
+                  <Link href={`/dashboard/workflows/${task.workflowId}`}>
+                    View Workflow
+                  </Link>
+                </Button>
                 <Button variant="outline" className="w-full justify-start" asChild>
                   <Link href={`/dashboard/batches/${task.batchId}`}>
                     View Batch Details
