@@ -19,7 +19,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
 import { TopBar } from "@/components/top-bar"
-import { StatusBadge, PriorityBadge, TaskTypeBadge } from "@/components/status-badge"
+import { StatusBadge, TaskTypeBadge } from "@/components/status-badge"
 import { tasks, defaultUser, getTasksForUser } from "@/lib/dummy-data"
 import { useAuth } from "@/lib/auth-context"
 import type { TaskStatus } from "@/lib/types"
@@ -122,9 +122,6 @@ function TaskList({ tasks, expandedFeedback, setExpandedFeedback, isAdmin = fals
         <Card key={task.id} className="border-border bg-card">
           <CardContent className="p-3">
             <div className="flex items-center gap-3">
-              {/* Priority */}
-              <PriorityBadge priority={task.priority} className="w-8 justify-center" />
-              
               {/* Main content */}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-0.5">

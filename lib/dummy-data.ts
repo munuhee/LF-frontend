@@ -100,12 +100,7 @@ const additionalAnnotator: User = {
   testOtp: "789012",
 }
 
-// NOTE: currentUser is now determined dynamically from auth context in useAuth() hook
-// Use the useAuth() hook in client components to get the authenticated user
-// For server components, you need to pass user data from a client parent component
-export const defaultUser: User = testAnnotator1
-
-export const users: User[] = [
+export const users = [
   testAnnotator1,
   testAnnotator2,
   testReviewer1,
@@ -115,25 +110,32 @@ export const users: User[] = [
   additionalAnnotator,
 ]
 
-// Authentication helpers - only seeded credentials work
+// Validate credentials for login flow
 export function validateCredentials(email: string, password: string): User | null {
-  const user = users.find(
-    (u) => u.email.toLowerCase() === email.toLowerCase() && u.testPassword === password
-  )
-  return user || null
+  const user = users.find((u) => u.email === email)
+  if (!user) return null
+  if (user.testPassword !== password) return null
+  return user
 }
 
+// Validate OTP for login flow
 export function validateOtp(email: string, otp: string): User | null {
-  const user = users.find(
-    (u) => u.email.toLowerCase() === email.toLowerCase() && u.testOtp === otp
-  )
-  return user || null
+  const user = users.find((u) => u.email === email)
+  if (!user) return null
+  if (user.testOtp !== otp) return null
+  return user
 }
+
+// NOTE: currentUser is now determined dynamically from auth context in useAuth() hook
+// Use the useAuth() hook in client components to get the authenticated user
+// For server components, you need to pass user data from a client parent component
+export const defaultUser: User = testAnnotator1
 
 // ============================================
-// WORKFLOWS
+// WORKFLOWS - ONLY 3 WORKFLOWS
 // ============================================
 // Hierarchy: Workflow -> Batches -> Tasks
+// Only LLM, Agentic AI, and Multimodal
 
 export const workflows: Workflow[] = [
   {
@@ -152,8 +154,8 @@ export const workflows: Workflow[] = [
     description: "Generate high-quality training data for language model improvements",
     type: "llm-training",
     isActive: true,
-    batchCount: 1,
-    taskCount: 100,
+    batchCount: 0,
+    taskCount: 0,
     createdAt: "2026-04-05",
   },
   {
@@ -165,46 +167,6 @@ export const workflows: Workflow[] = [
     batchCount: 0,
     taskCount: 0,
     createdAt: "2026-04-08",
-  },
-  {
-    id: "wf_004",
-    name: "Red Teaming Initiative",
-    description: "Identify vulnerabilities and safety issues in AI models",
-    type: "red-teaming",
-    isActive: true,
-    batchCount: 1,
-    taskCount: 30,
-    createdAt: "2026-04-02",
-  },
-  {
-    id: "wf_005",
-    name: "Benchmarking Suite",
-    description: "Compare model responses against baseline benchmarks",
-    type: "benchmarking",
-    isActive: true,
-    batchCount: 0,
-    taskCount: 0,
-    createdAt: "2026-04-10",
-  },
-  {
-    id: "wf_006",
-    name: "Preference Ranking",
-    description: "Rank model outputs based on helpfulness, accuracy, and safety",
-    type: "preference-ranking",
-    isActive: true,
-    batchCount: 0,
-    taskCount: 0,
-    createdAt: "2026-04-03",
-  },
-  {
-    id: "wf_007",
-    name: "Code Evaluation",
-    description: "Evaluate quality and correctness of generated code",
-    type: "evaluation",
-    isActive: true,
-    batchCount: 0,
-    taskCount: 0,
-    createdAt: "2026-04-12",
   },
 ]
 
@@ -247,197 +209,52 @@ export const batches: Batch[] = [
     createdAt: "2026-04-12",
     assignedAnnotatorCount: 3,
   },
-  // LLM Training workflow batch (wf_002)
-  {
-    id: "batch_002",
-    workflowId: "wf_002",
-    workflowName: "LLM Training Data",
-    title: "Customer Support Response Training",
-    description: "Generate and evaluate customer support responses for various scenarios",
-    taskType: "llm-training",
-    priority: 0.55,
-    workloadEstimate: 25,
-    status: "in-progress",
-    tasksTotal: 100,
-    tasksCompleted: 45,
-    createdAt: "2026-04-08",
-    assignedAnnotatorCount: 8,
-  },
-  // Red Teaming workflow batch (wf_004)
-  {
-    id: "batch_004",
-    workflowId: "wf_004",
-    workflowName: "Red Teaming Initiative",
-    title: "Model Safety Red Teaming",
-    description: "Attempt to find vulnerabilities and safety issues in the latest model version",
-    taskType: "red-teaming",
-    priority: 1.0,
-    workloadEstimate: 20,
-    status: "in-progress",
-    tasksTotal: 30,
-    tasksCompleted: 18,
-    createdAt: "2026-04-05",
-    assignedAnnotatorCount: 4,
-  },
 ]
 
 // Tasks - each task has ownership (annotator email, reviewer email)
 // Status: unclaimed (available to pick), in-progress, paused, submitted, approved, rejected, revision-requested
 export const tasks: Task[] = [
-  // ANNOTATOR 1 (usr_001 - Alex Chen) tasks
-  {
-    id: "task_001",
-    batchId: "batch_002",
-    batchTitle: "Customer Support Response Training",
-    workflowId: "wf_002",
-    workflowName: "LLM Training Data",
-    title: "Handle refund request scenario",
-    description: "Generate appropriate responses for a customer requesting a refund for a damaged product received last week",
-    taskType: "llm-training",
-    status: "in-progress",
-    priority: 0.55,
-    estimatedDuration: 15,
-    actualDuration: 10,
-    startedAt: "2026-04-19T09:30:00Z",
-    annotatorId: "usr_001",
-    annotatorEmail: "alex.chen@labelforge.ai",
-  },
-  {
-    id: "task_002",
-    batchId: "batch_004",
-    batchTitle: "Model Safety Red Teaming",
-    workflowId: "wf_004",
-    workflowName: "Red Teaming Initiative",
-    title: "Test prompt injection resistance",
-    description: "Attempt various prompt injection techniques and document model responses and any vulnerabilities found",
-    taskType: "red-teaming",
-    status: "submitted",
-    priority: 1.0,
-    externalUrl: "https://redteam.internal.ai/session/abc123",
-    estimatedDuration: 30,
-    actualDuration: 28,
-    startedAt: "2026-04-18T14:00:00Z",
-    completedAt: "2026-04-18T14:28:00Z",
-    submittedAt: "2026-04-18T14:30:00Z",
-    annotatorId: "usr_001",
-    annotatorEmail: "alex.chen@labelforge.ai",
-  },
-  {
-    id: "task_003",
-    batchId: "batch_002",
-    batchTitle: "Customer Support Response Training",
-    workflowId: "wf_002",
-    workflowName: "LLM Training Data",
-    title: "Technical troubleshooting guidance",
-    description: "Provide step-by-step troubleshooting for common technical issues with software installation",
-    taskType: "llm-training",
-    status: "approved",
-    priority: 0.55,
-    estimatedDuration: 20,
-    actualDuration: 18,
-    startedAt: "2026-04-17T10:00:00Z",
-    completedAt: "2026-04-17T10:18:00Z",
-    submittedAt: "2026-04-17T10:20:00Z",
-    annotatorId: "usr_001",
-    annotatorEmail: "alex.chen@labelforge.ai",
-    reviewerId: "usr_002",
-    reviewerEmail: "sarah.johnson@labelforge.ai",
-    qualityScore: 92,
-    feedback: "Excellent responses with clear step-by-step instructions. Good use of numbered lists.",
-  },
-  {
-    id: "task_005",
-    batchId: "batch_004",
-    batchTitle: "Model Safety Red Teaming",
-    workflowId: "wf_004",
-    workflowName: "Red Teaming Initiative",
-    title: "Test content policy boundaries",
-    description: "Evaluate model responses at the edge of content policies and document any inconsistencies",
-    taskType: "red-teaming",
-    status: "revision-requested",
-    priority: 1.0,
-    estimatedDuration: 25,
-    actualDuration: 22,
-    startedAt: "2026-04-16T11:00:00Z",
-    completedAt: "2026-04-16T11:22:00Z",
-    submittedAt: "2026-04-16T11:25:00Z",
-    annotatorId: "usr_001",
-    annotatorEmail: "alex.chen@labelforge.ai",
-    reviewerId: "usr_002",
-    reviewerEmail: "sarah.johnson@labelforge.ai",
-    feedback: "Please add more detailed documentation of the edge cases tested. Include specific prompts used.",
-  },
-  // ANNOTATOR 2 (usr_004 - Emily Davis) tasks
-  {
-    id: "task_009",
-    batchId: "batch_002",
-    batchTitle: "Customer Support Response Training",
-    workflowId: "wf_002",
-    workflowName: "LLM Training Data",
-    title: "Product return process",
-    description: "Guide customer through the product return and exchange process",
-    taskType: "llm-training",
-    status: "in-progress",
-    priority: 0.55,
-    estimatedDuration: 12,
-    startedAt: "2026-04-19T10:00:00Z",
-    annotatorId: "usr_004",
-    annotatorEmail: "emily.davis@labelforge.ai",
-  },
-  {
-    id: "task_010",
-    batchId: "batch_002",
-    batchTitle: "Customer Support Response Training",
-    workflowId: "wf_002",
-    workflowName: "LLM Training Data",
-    title: "Account recovery assistance",
-    description: "Help customer recover access to their locked account",
-    taskType: "llm-training",
-    status: "submitted",
-    priority: 0.55,
-    estimatedDuration: 10,
-    actualDuration: 9,
-    startedAt: "2026-04-19T08:00:00Z",
-    completedAt: "2026-04-19T08:09:00Z",
-    submittedAt: "2026-04-19T08:10:00Z",
-    annotatorId: "usr_004",
-    annotatorEmail: "emily.davis@labelforge.ai",
-  },
-  {
-    id: "task_013",
-    batchId: "batch_008",
-    batchTitle: "Agent Task Completion - E-commerce Flows",
-    workflowId: "wf_001",
-    workflowName: "Agentic AI Evaluation",
-    title: "Evaluate product comparison flow",
-    description: "Complete a product comparison task on an e-commerce site",
-    taskType: "agentic-ai",
-    status: "submitted",
-    priority: 0.9,
-    estimatedDuration: 20,
-    actualDuration: 18,
-    startedAt: "2026-04-18T11:00:00Z",
-    completedAt: "2026-04-18T11:18:00Z",
-    submittedAt: "2026-04-18T11:20:00Z",
-    annotatorId: "usr_004",
-    annotatorEmail: "emily.davis@labelforge.ai",
-  },
-  // Additional annotator (usr_005 - James Wilson) tasks
+  // AGENTIC AI TASKS WITH SUBMISSION DATA
   {
     id: "task_011",
-    batchId: "batch_008",
-    batchTitle: "Agent Task Completion - E-commerce Flows",
+    batchId: "batch_001",
+    batchTitle: "Agent Task Completion - Web Navigation",
     workflowId: "wf_001",
     workflowName: "Agentic AI Evaluation",
-    title: "Complete checkout process",
-    description: "Navigate through a complete checkout flow including cart, shipping, and payment",
+    title: "Navigate to booking page and fill form",
+    description: "Complete a hotel booking task on example-travel.com. Fill in dates, guest count, and preferences.",
     taskType: "agentic-ai",
-    status: "in-progress",
-    priority: 0.9,
-    estimatedDuration: 15,
-    startedAt: "2026-04-19T09:15:00Z",
-    annotatorId: "usr_005",
-    annotatorEmail: "james.wilson@labelforge.ai",
+    status: "submitted",
+    priority: 0.95,
+    externalUrl: "https://agentic-eval.labelforge.ai/session/task_011",
+    estimatedDuration: 25,
+    actualDuration: 23,
+    startedAt: "2026-04-18T14:00:00Z",
+    completedAt: "2026-04-18T14:23:00Z",
+    submittedAt: "2026-04-18T14:25:00Z",
+    annotatorId: "usr_001",
+    annotatorEmail: "alex.chen@labelforge.ai",
+    submissionData: {
+      hotelName: "Grand Plaza Hotel",
+      checkInDate: "2026-05-15",
+      checkOutDate: "2026-05-20",
+      guestCount: 2,
+      roomType: "Deluxe Suite",
+      specialRequests: "High floor, city view",
+      totalPrice: 1250.00,
+      completionStatus: "success",
+      steps_taken: 8,
+      navigation_path: ["home", "search", "results", "details", "booking", "payment", "confirmation"],
+    },
+    screenshots: [
+      "https://images.unsplash.com/photo-1552664730-d307ca884978?w=800",
+      "https://images.unsplash.com/photo-1631049307264-da0ec9d70304?w=800",
+      "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=800",
+      "https://images.unsplash.com/photo-1559827260-dc66d52bef19?w=800",
+      "https://images.unsplash.com/photo-1551632786-6a81a27a4d41?w=800",
+      "https://images.unsplash.com/photo-1550355291-bbee04a92027?w=800",
+      "https://images.unsplash.com/photo-1585399781851-7dd02ceeba7d?w=800",
+    ],
   },
   {
     id: "task_012",
@@ -445,310 +262,333 @@ export const tasks: Task[] = [
     batchTitle: "Agent Task Completion - E-commerce Flows",
     workflowId: "wf_001",
     workflowName: "Agentic AI Evaluation",
-    title: "Product search and filter",
-    description: "Use search and filter functionality to find specific products",
+    title: "Search and compare products",
+    description: "Find laptop recommendations under $1000 and compare specifications",
+    taskType: "agentic-ai",
+    status: "submitted",
+    priority: 0.9,
+    externalUrl: "https://agentic-eval.labelforge.ai/session/task_012",
+    estimatedDuration: 20,
+    actualDuration: 18,
+    startedAt: "2026-04-19T10:00:00Z",
+    completedAt: "2026-04-19T10:18:00Z",
+    submittedAt: "2026-04-19T10:20:00Z",
+    annotatorId: "usr_004",
+    annotatorEmail: "emily.davis@labelforge.ai",
+    submissionData: {
+      searchQuery: "laptop under 1000",
+      itemsFound: 42,
+      itemsCompared: 5,
+      topChoice: {
+        brand: "TechBrand X",
+        model: "UltraBook Pro 14",
+        price: 899.99,
+        specs: {
+          processor: "Intel i7-12700H",
+          ram: "16GB DDR5",
+          storage: "512GB SSD",
+          display: "14 inch FHD",
+          weight: "1.4kg",
+        },
+      },
+      comparisonMetrics: {
+        priceRange: "599-999",
+        averageRating: 4.5,
+        filterApplied: ["price", "processor", "ram"],
+      },
+    },
+    screenshots: [
+      "https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=800",
+      "https://images.unsplash.com/photo-1559056199-641a0ac8b3f4?w=800",
+      "https://images.unsplash.com/photo-1588872657840-790ff3bde172?w=800",
+    ],
+  },
+  {
+    id: "task_013",
+    batchId: "batch_001",
+    batchTitle: "Agent Task Completion - Web Navigation",
+    workflowId: "wf_001",
+    workflowName: "Agentic AI Evaluation",
+    title: "Create account and verify email",
+    description: "Sign up for an account on example-retail.com and complete email verification",
     taskType: "agentic-ai",
     status: "approved",
-    priority: 0.9,
+    priority: 0.95,
+    externalUrl: "https://agentic-eval.labelforge.ai/session/task_013",
     estimatedDuration: 10,
-    actualDuration: 11,
-    startedAt: "2026-04-18T14:00:00Z",
-    completedAt: "2026-04-18T14:11:00Z",
-    submittedAt: "2026-04-18T14:12:00Z",
+    actualDuration: 9,
+    startedAt: "2026-04-17T09:00:00Z",
+    completedAt: "2026-04-17T09:09:00Z",
+    submittedAt: "2026-04-17T09:10:00Z",
     annotatorId: "usr_005",
     annotatorEmail: "james.wilson@labelforge.ai",
-    reviewerId: "usr_006",
-    reviewerEmail: "maria.garcia@labelforge.ai",
-    qualityScore: 88,
-    feedback: "Good work. Consider providing more detail on search criteria in future tasks.",
+    reviewerId: "usr_002",
+    reviewerEmail: "sarah.johnson@labelforge.ai",
+    qualityScore: 95,
+    feedback: "Excellent task completion. All steps verified correctly.",
+    submissionData: {
+      email: "user@example.com",
+      accountCreated: true,
+      emailVerified: true,
+      verificationTime: "2:15",
+      passwordStrength: "strong",
+    },
+    screenshots: [
+      "https://images.unsplash.com/photo-1563986768609-322da13e7980?w=800",
+      "https://images.unsplash.com/photo-1563986768060-00c8ad0a3800?w=800",
+    ],
   },
+  // UNCLAIMED AGENTIC AI TASKS
   {
     id: "task_014",
     batchId: "batch_001",
     batchTitle: "Agent Task Completion - Web Navigation",
     workflowId: "wf_001",
     workflowName: "Agentic AI Evaluation",
-    title: "Complete travel booking flow",
-    description: "Book a complete travel package including flight and hotel",
+    title: "Fill out feedback form",
+    description: "Complete a customer feedback survey with realistic responses",
     taskType: "agentic-ai",
-    status: "submitted",
+    status: "unclaimed",
     priority: 0.95,
-    estimatedDuration: 15,
-    actualDuration: 14,
-    startedAt: "2026-04-18T15:00:00Z",
-    completedAt: "2026-04-18T15:14:00Z",
-    submittedAt: "2026-04-18T15:15:00Z",
-    annotatorId: "usr_005",
-    annotatorEmail: "james.wilson@labelforge.ai",
+    externalUrl: "https://agentic-eval.labelforge.ai/session/task_014",
+    estimatedDuration: 12,
   },
-  // Unclaimed tasks (available to pick from batches)
   {
     id: "task_015",
     batchId: "batch_001",
     batchTitle: "Agent Task Completion - Web Navigation",
     workflowId: "wf_001",
     workflowName: "Agentic AI Evaluation",
-    title: "Book a flight reservation",
-    description: "Navigate to a travel website and complete a flight booking process from search to confirmation",
+    title: "Subscribe to newsletter",
+    description: "Find and complete newsletter subscription process",
     taskType: "agentic-ai",
     status: "unclaimed",
     priority: 0.95,
-    externalUrl: "https://demo-travel.com/flights",
-    estimatedDuration: 25,
+    externalUrl: "https://agentic-eval.labelforge.ai/session/task_015",
+    estimatedDuration: 8,
   },
   {
     id: "task_016",
-    batchId: "batch_001",
-    batchTitle: "Agent Task Completion - Web Navigation",
+    batchId: "batch_008",
+    batchTitle: "Agent Task Completion - E-commerce Flows",
     workflowId: "wf_001",
     workflowName: "Agentic AI Evaluation",
-    title: "Fill out insurance form",
-    description: "Complete a multi-page insurance application form with provided test data",
+    title: "Apply discount code at checkout",
+    description: "Complete purchase using a promotional discount code",
     taskType: "agentic-ai",
     status: "unclaimed",
-    priority: 0.95,
-    externalUrl: "https://demo-insurance.com/apply",
-    estimatedDuration: 30,
-  },
-  {
-    id: "task_017",
-    batchId: "batch_002",
-    batchTitle: "Customer Support Response Training",
-    workflowId: "wf_002",
-    workflowName: "LLM Training Data",
-    title: "Handle billing dispute",
-    description: "Generate responses for a customer disputing charges on their account for the past month",
-    taskType: "llm-training",
-    status: "unclaimed",
-    priority: 0.55,
+    priority: 0.9,
+    externalUrl: "https://agentic-eval.labelforge.ai/session/task_016",
     estimatedDuration: 15,
-  },
-  {
-    id: "task_018",
-    batchId: "batch_004",
-    batchTitle: "Model Safety Red Teaming",
-    workflowId: "wf_004",
-    workflowName: "Red Teaming Initiative",
-    title: "Test jailbreak resistance",
-    description: "Attempt various jailbreak techniques and document model behavior",
-    taskType: "red-teaming",
-    status: "unclaimed",
-    priority: 1.0,
-    estimatedDuration: 35,
   },
 ]
 
 export const reviews: Review[] = [
   {
     id: "rev_001",
-    taskId: "task_002",
-    taskTitle: "Test prompt injection resistance",
-    batchId: "batch_004",
-    batchTitle: "Model Safety Red Teaming",
-    annotatorId: "usr_001",
-    annotatorEmail: "alex.chen@labelforge.ai",
-    annotatorName: "Alex Chen",
-    status: "pending",
-    submittedAt: "2026-04-18T14:30:00Z",
-  },
-  {
-    id: "rev_002",
-    taskId: "task_003",
-    taskTitle: "Technical troubleshooting guidance",
-    batchId: "batch_002",
-    batchTitle: "Customer Support Response Training",
-    annotatorId: "usr_001",
-    annotatorEmail: "alex.chen@labelforge.ai",
-    annotatorName: "Alex Chen",
-    reviewerId: "usr_002",
-    reviewerEmail: "sarah.johnson@labelforge.ai",
-    reviewerName: "Sarah Johnson",
-    status: "approved",
-    submittedAt: "2026-04-17T10:20:00Z",
-    reviewedAt: "2026-04-17T11:00:00Z",
-    qualityScore: 92,
-    feedback: "Excellent responses with clear step-by-step instructions. Good use of numbered lists.",
-    criteriaScores: {
-      accuracy: 95,
-      completeness: 90,
-      adherence: 91,
-    },
-  },
-  {
-    id: "rev_003",
-    taskId: "task_005",
-    taskTitle: "Test content policy boundaries",
-    batchId: "batch_004",
-    batchTitle: "Model Safety Red Teaming",
-    annotatorId: "usr_001",
-    annotatorEmail: "alex.chen@labelforge.ai",
-    annotatorName: "Alex Chen",
-    reviewerId: "usr_002",
-    reviewerEmail: "sarah.johnson@labelforge.ai",
-    reviewerName: "Sarah Johnson",
-    status: "revision-requested",
-    submittedAt: "2026-04-16T11:25:00Z",
-    reviewedAt: "2026-04-16T14:00:00Z",
-    feedback: "Please add more detailed documentation of the edge cases tested. Include specific prompts used.",
-    criteriaScores: {
-      accuracy: 85,
-      completeness: 70,
-      adherence: 88,
-    },
-  },
-  {
-    id: "rev_005",
-    taskId: "task_010",
-    taskTitle: "Account recovery assistance",
-    batchId: "batch_002",
-    batchTitle: "Customer Support Response Training",
-    annotatorId: "usr_004",
-    annotatorEmail: "emily.davis@labelforge.ai",
-    annotatorName: "Emily Davis",
-    status: "pending",
-    submittedAt: "2026-04-19T08:10:00Z",
-  },
-  {
-    id: "rev_006",
-    taskId: "task_012",
-    taskTitle: "Product search and filter",
-    batchId: "batch_008",
-    batchTitle: "Agent Task Completion - E-commerce Flows",
-    annotatorId: "usr_005",
-    annotatorEmail: "james.wilson@labelforge.ai",
-    annotatorName: "James Wilson",
-    reviewerId: "usr_006",
-    reviewerEmail: "maria.garcia@labelforge.ai",
-    reviewerName: "Maria Garcia",
-    status: "approved",
-    submittedAt: "2026-04-18T14:12:00Z",
-    reviewedAt: "2026-04-18T15:00:00Z",
-    qualityScore: 88,
-    feedback: "Good work. Consider providing more detail on search criteria in future tasks.",
-    criteriaScores: {
-      accuracy: 90,
-      completeness: 85,
-      adherence: 89,
-    },
-  },
-  {
-    id: "rev_007",
     taskId: "task_013",
-    taskTitle: "Evaluate product comparison flow",
-    batchId: "batch_008",
-    batchTitle: "Agent Task Completion - E-commerce Flows",
-    annotatorId: "usr_004",
-    annotatorEmail: "emily.davis@labelforge.ai",
-    annotatorName: "Emily Davis",
-    status: "pending",
-    submittedAt: "2026-04-18T11:20:00Z",
-  },
-  {
-    id: "rev_008",
-    taskId: "task_014",
-    taskTitle: "Complete travel booking flow",
+    taskTitle: "Create account and verify email",
     batchId: "batch_001",
     batchTitle: "Agent Task Completion - Web Navigation",
     annotatorId: "usr_005",
     annotatorEmail: "james.wilson@labelforge.ai",
     annotatorName: "James Wilson",
-    status: "pending",
-    submittedAt: "2026-04-18T15:15:00Z",
+    reviewerId: "usr_002",
+    reviewerEmail: "sarah.johnson@labelforge.ai",
+    reviewerName: "Sarah Johnson",
+    status: "approved",
+    submittedAt: "2026-04-17T09:10:00Z",
+    reviewedAt: "2026-04-17T10:00:00Z",
+    qualityScore: 95,
+    feedback: "Excellent task completion. All steps verified correctly.",
+    criteriaScores: {
+      accuracy: 98,
+      completeness: 95,
+      adherence: 92,
+    },
   },
 ]
 
-export const notifications: Notification[] = [
-  {
-    id: "notif_001",
-    type: "batch-assigned",
-    title: "New Batch Assigned",
-    message: "You have been assigned to 'Agent Task Completion - Web Navigation' batch",
-    read: false,
-    createdAt: "2026-04-19T08:00:00Z",
-    actionUrl: "/dashboard/batches/batch_001",
-  },
-  {
-    id: "notif_002",
-    type: "task-approved",
-    title: "Task Approved",
-    message: "Your task 'Technical troubleshooting guidance' has been approved with a score of 92",
-    read: false,
-    createdAt: "2026-04-17T11:00:00Z",
-    actionUrl: "/dashboard/tasks/task_003",
-  },
-  {
-    id: "notif_003",
-    type: "priority-warning",
-    title: "High Priority Tasks",
-    message: "Model Safety Red Teaming batch has P0 priority tasks requiring attention",
-    read: true,
-    createdAt: "2026-04-19T06:00:00Z",
-    actionUrl: "/dashboard/batches/batch_004",
-  },
-  {
-    id: "notif_004",
-    type: "review-needed",
-    title: "Revision Requested",
-    message: "Please revise 'Test content policy boundaries' based on reviewer feedback",
-    read: false,
-    createdAt: "2026-04-16T14:00:00Z",
-    actionUrl: "/dashboard/tasks/task_005",
-  },
-]
+// Role-based notifications
+export function getNotificationsForUser(userId: string, role: string): Notification[] {
+  const baseNotifications: Notification[] = []
+
+  if (role === "annotator") {
+    // Annotator notifications
+    baseNotifications.push(
+      {
+        id: "notif_001",
+        type: "batch-assigned",
+        title: "New Agentic AI Task Available",
+        message: "New task available in 'Agent Task Completion - E-commerce Flows'",
+        read: false,
+        createdAt: "2026-04-19T08:00:00Z",
+        actionUrl: "/dashboard/batches/batch_008",
+      },
+      {
+        id: "notif_002",
+        type: "task-approved",
+        title: "Task Approved",
+        message: "Your task 'Create account and verify email' was approved with score 95",
+        read: false,
+        createdAt: "2026-04-17T10:00:00Z",
+        actionUrl: "/dashboard/tasks/task_013",
+      },
+      {
+        id: "notif_003",
+        type: "review-needed",
+        title: "Revision Needed",
+        message: "Please check feedback on your submitted task",
+        read: true,
+        createdAt: "2026-04-16T14:00:00Z",
+        actionUrl: "/dashboard/tasks/task_005",
+      }
+    )
+  } else if (role === "reviewer") {
+    // Reviewer notifications
+    baseNotifications.push(
+      {
+        id: "notif_101",
+        type: "review-needed",
+        title: "Tasks Pending Review",
+        message: "3 new agentic AI tasks submitted for your review",
+        read: false,
+        createdAt: "2026-04-19T09:00:00Z",
+        actionUrl: "/dashboard/reviews",
+      },
+      {
+        id: "notif_102",
+        type: "priority-warning",
+        title: "High Priority Review",
+        message: "Critical agentic AI submissions await your review",
+        read: false,
+        createdAt: "2026-04-19T08:30:00Z",
+        actionUrl: "/dashboard/reviews",
+      }
+    )
+  } else if (role === "admin") {
+    // Admin notifications
+    baseNotifications.push(
+      {
+        id: "notif_201",
+        type: "batch-assigned",
+        title: "Agentic AI Workflow Active",
+        message: "Both batches of Agentic AI Evaluation are progressing well",
+        read: false,
+        createdAt: "2026-04-19T08:00:00Z",
+        actionUrl: "/dashboard/workflows/wf_001",
+      },
+      {
+        id: "notif_202",
+        type: "system",
+        title: "Daily Report Ready",
+        message: "Today's completion report is available for download",
+        read: true,
+        createdAt: "2026-04-19T07:00:00Z",
+        actionUrl: "/dashboard",
+      },
+      {
+        id: "notif_203",
+        type: "priority-warning",
+        title: "LLM & Multimodal Workflows",
+        message: "LLM Training Data and Multimodal Assessment have 0 active tasks",
+        read: false,
+        createdAt: "2026-04-19T06:00:00Z",
+        actionUrl: "/dashboard/workflows",
+      }
+    )
+  }
+
+  return baseNotifications
+}
+
+export const notifications: Notification[] = getNotificationsForUser("usr_001", "annotator")
 
 export const dashboardStats: DashboardStats = {
-  availableBatches: 4,
-  activeTasks: 1,
-  completedTasks: 15,
-  signedOffTasks: 12,
-  pendingReviews: 4,
-  averageQualityScore: 91.5,
+  availableBatches: 2,
+  activeTasks: 3,
+  completedTasks: 2,
+  signedOffTasks: 1,
+  pendingReviews: 2,
+  averageQualityScore: 94,
 }
 
 export const adminStats: AdminStats = {
   totalAnnotators: 3,
   totalReviewers: 2,
-  totalTasksCompleted: 45,
-  totalTasksPending: 12,
-  averageTaskTime: 18,
-  dailyToolUsageHours: 24.5,
+  totalTasksCompleted: 3,
+  totalTasksPending: 3,
+  averageTaskTime: 17,
+  dailyToolUsageHours: 12.5,
 }
 
 export const analyticsData: AnalyticsData = {
   tasksCompletedByDay: [
-    { date: "2026-04-13", count: 5 },
-    { date: "2026-04-14", count: 8 },
-    { date: "2026-04-15", count: 6 },
-    { date: "2026-04-16", count: 10 },
-    { date: "2026-04-17", count: 7 },
-    { date: "2026-04-18", count: 9 },
-    { date: "2026-04-19", count: 4 },
+    { date: "2026-04-13", count: 2 },
+    { date: "2026-04-14", count: 3 },
+    { date: "2026-04-15", count: 2 },
+    { date: "2026-04-16", count: 1 },
+    { date: "2026-04-17", count: 1 },
+    { date: "2026-04-18", count: 1 },
+    { date: "2026-04-19", count: 1 },
   ],
   tasksByType: [
-    { type: "agentic-ai", count: 15 },
-    { type: "llm-training", count: 45 },
+    { type: "agentic-ai", count: 8 },
+    { type: "llm-training", count: 0 },
     { type: "multimodal", count: 0 },
     { type: "evaluation", count: 0 },
-    { type: "red-teaming", count: 18 },
+    { type: "red-teaming", count: 0 },
     { type: "preference-ranking", count: 0 },
+    { type: "benchmarking", count: 0 },
+    { type: "data-collection", count: 0 },
   ],
   qualityScoresTrend: [
-    { date: "2026-04-13", score: 88 },
-    { date: "2026-04-14", score: 90 },
-    { date: "2026-04-15", score: 89 },
-    { date: "2026-04-16", score: 92 },
-    { date: "2026-04-17", score: 91 },
-    { date: "2026-04-18", score: 93 },
-    { date: "2026-04-19", score: 92 },
+    { date: "2026-04-13", score: 92 },
+    { date: "2026-04-14", score: 93 },
+    { date: "2026-04-15", score: 93 },
+    { date: "2026-04-16", score: 94 },
+    { date: "2026-04-17", score: 95 },
+    { date: "2026-04-18", score: 94 },
+    { date: "2026-04-19", score: 94 },
   ],
   annotatorPerformance: [
-    { id: "usr_001", name: "Alex Chen", email: "alex.chen@labelforge.ai", tasksCompleted: 45, averageQuality: 91.5, averageTimeMinutes: 18, totalToolUsageHours: 8.5 },
-    { id: "usr_004", name: "Emily Davis", email: "emily.davis@labelforge.ai", tasksCompleted: 38, averageQuality: 89.2, averageTimeMinutes: 22, totalToolUsageHours: 7.2 },
-    { id: "usr_005", name: "James Wilson", email: "james.wilson@labelforge.ai", tasksCompleted: 32, averageQuality: 87.8, averageTimeMinutes: 25, totalToolUsageHours: 6.8 },
+    {
+      id: "usr_001",
+      name: "Alex Chen",
+      email: "alex.chen@labelforge.ai",
+      tasksCompleted: 1,
+      averageQuality: 94,
+      averageTimeMinutes: 23,
+      totalToolUsageHours: 2.5,
+    },
+    {
+      id: "usr_004",
+      name: "Emily Davis",
+      email: "emily.davis@labelforge.ai",
+      tasksCompleted: 1,
+      averageQuality: 94,
+      averageTimeMinutes: 18,
+      totalToolUsageHours: 2.1,
+    },
+    {
+      id: "usr_005",
+      name: "James Wilson",
+      email: "james.wilson@labelforge.ai",
+      tasksCompleted: 1,
+      averageQuality: 95,
+      averageTimeMinutes: 9,
+      totalToolUsageHours: 1.8,
+    },
   ],
   reviewerActivity: [
-    { id: "usr_002", name: "Sarah Johnson", email: "sarah.johnson@labelforge.ai", reviewsCompleted: 28, averageReviewTime: 12, approvalRate: 85 },
-    { id: "usr_006", name: "Maria Garcia", email: "maria.garcia@labelforge.ai", reviewsCompleted: 22, averageReviewTime: 15, approvalRate: 82 },
+    {
+      id: "usr_002",
+      name: "Sarah Johnson",
+      email: "sarah.johnson@labelforge.ai",
+      reviewsCompleted: 1,
+      averageReviewTime: 60,
+      approvalRate: 100,
+    },
   ],
 }
 
@@ -756,25 +596,39 @@ export const analyticsData: AnalyticsData = {
 export function getTasksForUser(userId: string, role: string): Task[] {
   if (role === "annotator") {
     // Annotators only see tasks assigned to them (not unclaimed tasks in their task list)
-    return tasks.filter(t => t.annotatorId === userId)
+    return tasks.filter((t) => t.annotatorId === userId)
+  } else if (role === "reviewer") {
+    // Reviewers see all submitted/approved/rejected tasks for review
+    return tasks.filter(
+      (t) =>
+        t.status === "submitted" ||
+        t.status === "revision-requested" ||
+        t.status === "approved" ||
+        t.status === "rejected"
+    )
+  } else {
+    // Admins see all tasks
+    return tasks
   }
-  if (role === "reviewer") {
-    // Reviewers only see tasks that have been submitted and are ready for review
-    return tasks.filter(t => t.status === "submitted")
-  }
-  // Admin sees all tasks
-  return tasks
 }
 
-// Helper to get available (unclaimed) tasks from a batch
+// Helper to get unclaimed tasks in a batch
 export function getUnclaimedTasksFromBatch(batchId: string): Task[] {
-  return tasks.filter(t => t.batchId === batchId && t.status === "unclaimed")
+  return tasks.filter((t) => t.batchId === batchId && t.status === "unclaimed")
 }
 
-// Helper to check if a reviewer can take on more reviews
+// Helper to determine if reviewer can take more tasks (max 2 concurrent reviews)
 export function canReviewerTakeMoreReviews(reviewerId: string): boolean {
-  const activeReviewCount = reviews.filter(
-    r => r.reviewerId === reviewerId && r.status === "in-review"
-  ).length
-  return activeReviewCount < 2
+  const activeReviews = reviews.filter(
+    (r) => r.reviewerId === reviewerId && r.status === "in-review"
+  )
+  return activeReviews.length < 2
+}
+
+// Helper to get stats based on user role
+export function getStatsForRole(role: string): DashboardStats {
+  if (role === "admin") {
+    return adminStats
+  }
+  return dashboardStats
 }
