@@ -189,7 +189,7 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <TaskList tasks={unclaimedTasks} showClaimButton />
+              <TaskList tasks={unclaimedTasks} showClaimButton currentUser={currentUser} />
             </CardContent>
           </Card>
         )}
@@ -205,16 +205,16 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
             </TabsList>
 
             <TabsContent value="all">
-              <TaskList tasks={myTasks} />
+              <TaskList tasks={myTasks} currentUser={currentUser} />
             </TabsContent>
             <TabsContent value="active">
-              <TaskList tasks={inProgressTasks} />
+              <TaskList tasks={inProgressTasks} currentUser={currentUser} />
             </TabsContent>
             <TabsContent value="review">
-              <TaskList tasks={submittedTasks} />
+              <TaskList tasks={submittedTasks} currentUser={currentUser} />
             </TabsContent>
             <TabsContent value="completed">
-              <TaskList tasks={completedTasks} />
+              <TaskList tasks={completedTasks} currentUser={currentUser} />
             </TabsContent>
           </Tabs>
         )}
@@ -236,9 +236,10 @@ interface TaskListProps {
   tasks: Task[]
   showClaimButton?: boolean
   onTaskDeleted?: (taskId: string) => void
+  currentUser: typeof defaultUser
 }
 
-function TaskList({ tasks, showClaimButton = false, onTaskDeleted }: TaskListProps) {
+function TaskList({ tasks, showClaimButton = false, onTaskDeleted, currentUser }: TaskListProps) {
   if (tasks.length === 0) {
     return (
       <Card className="border-border bg-card">
