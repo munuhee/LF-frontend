@@ -1,6 +1,6 @@
 "use client"
 
-import { use } from "react"
+import { use, useState } from "react"
 import Link from "next/link"
 import { ArrowLeft, Calendar, Clock, Users, ExternalLink, Play, Pause, CheckCircle, Workflow } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -9,14 +9,17 @@ import { Progress } from "@/components/ui/progress"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { TopBar } from "@/components/top-bar"
 import { StatusBadge, PriorityBadge, TaskTypeBadge } from "@/components/status-badge"
+import { CreateTaskModal } from "@/components/create-task-modal"
 import { batches, tasks, currentUser, getUnclaimedTasksFromBatch } from "@/lib/dummy-data"
+import type { Task } from "@/lib/types"
 
 export default function BatchDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const batch = batches.find((b) => b.id === id)
+  const [batchTasks, setBatchTasks] = useState<Task[]>(tasks.filter((t) => t.batchId === id))
   
   // Get tasks based on role
-  const allBatchTasks = tasks.filter((t) => t.batchId === id)
+  const allBatchTasks = batchTasks
   
   // For annotators: only show their own tasks, not unclaimed ones
   // Unclaimed tasks are shown separately for claiming
@@ -26,6 +29,11 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
 
   // Get unclaimed tasks for annotators to claim
   const unclaimedTasks = getUnclaimedTasksFromBatch(id)
+
+  // Handle new task creation
+  const handleTaskCreated = (newTask: Task) => {
+    setBatchTasks([...batchTasks, newTask])
+  }
 
   if (!batch) {
     return (
@@ -123,8 +131,17 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
           </Card>
 
           <Card className="border-border bg-card">
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="text-lg">Batch Details</CardTitle>
+              {currentUser.role === "admin" && batch.workflowId === "wf_001" && (
+                <CreateTaskModal
+                  batchId={batch.id}
+                  batchTitle={batch.title}
+                  workflowId={batch.workflowId}
+                  workflowName={batch.workflowName}
+                  onTaskCreated={handleTaskCreated}
+                />
+              )}
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center justify-between">
@@ -213,11 +230,12 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
 }
 
 interface TaskListProps {
-  tasks: typeof import("@/lib/dummy-data").tasks
+  tasks: Task[]
   showClaimButton?: boolean
+  onTaskDeleted?: (taskId: string) => void
 }
 
-function TaskList({ tasks, showClaimButton = false }: TaskListProps) {
+function TaskList({ tasks, showClaimButton = false, onTaskDeleted }: TaskListProps) {
   if (tasks.length === 0) {
     return (
       <Card className="border-border bg-card">
@@ -226,6 +244,13 @@ function TaskList({ tasks, showClaimButton = false }: TaskListProps) {
         </CardContent>
       </Card>
     )
+  }
+
+  const handleDelete = (taskId: string) => {
+    if (window.confirm("Are you sure you want to delete this task?")) {
+      setBatchTasks(batchTasks.filter(t => t.id !== taskId))
+      onTaskDeleted?.(taskId)
+    }
   }
 
   return (
@@ -270,6 +295,15 @@ function TaskList({ tasks, showClaimButton = false }: TaskListProps) {
                       <ExternalLink className="h-4 w-4 mr-1" />
                       Open
                     </Link>
+                  </Button>
+                )}
+                {currentUser.role === "admin" && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleDelete(task.id)}
+                  >
+                    Delete
                   </Button>
                 )}
                 <Button size="sm" asChild>

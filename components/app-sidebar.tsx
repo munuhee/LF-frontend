@@ -144,7 +144,7 @@ export function AppSidebar() {
               {currentUser.name}
             </p>
             <p className="text-xs text-muted-foreground truncate capitalize">
-              {currentUser.role}
+              {`— ${currentUser.role.charAt(0).toUpperCase() + currentUser.role.slice(1)}`}
             </p>
           </div>
           <Link
