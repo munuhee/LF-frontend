@@ -12,6 +12,7 @@ import {
   User,
   ChevronDown,
   ChevronRight,
+  AlertCircle,
 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -29,8 +30,9 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { TopBar } from "@/components/top-bar"
-import { reviews, currentUser } from "@/lib/dummy-data"
+import { reviews, currentUser, canReviewerTakeMoreReviews } from "@/lib/dummy-data"
 
 type ReviewStatus = "pending" | "in-review" | "approved" | "rejected" | "revision-requested"
 
@@ -40,8 +42,10 @@ export default function ReviewsPage() {
 
   const isReviewer = currentUser.role === "reviewer" || currentUser.role === "admin"
   
+  // Reviewers only see tasks that have been submitted (ready for review)
+  // They should NOT see unannotated or in-progress tasks
   const myReviews = isReviewer 
-    ? reviews 
+    ? reviews.filter(r => r.status !== "in-review" || r.reviewerId === currentUser.id) // Show pending or their own active reviews
     : reviews.filter(r => r.annotatorId === currentUser.id)
 
   const filteredReviews = myReviews.filter((review) => {
@@ -49,9 +53,12 @@ export default function ReviewsPage() {
   })
 
   const pendingReviews = filteredReviews.filter(r => r.status === "pending")
-  const inProgressReviews = filteredReviews.filter(r => r.status === "in-review")
+  const inProgressReviews = filteredReviews.filter(r => r.status === "in-review" && r.reviewerId === currentUser.id)
   const approvedReviews = filteredReviews.filter(r => r.status === "approved")
   const rejectedReviews = filteredReviews.filter(r => ["rejected", "revision-requested"].includes(r.status))
+
+  // Check if reviewer is at task limit (max 2 active reviews)
+  const isAtTaskLimit = isReviewer && !canReviewerTakeMoreReviews(currentUser.id)
 
   const getStatusIcon = (status: ReviewStatus) => {
     switch (status) {
@@ -91,6 +98,16 @@ export default function ReviewsPage() {
       />
       
       <main className="flex-1 overflow-y-auto p-4 lg:p-6">
+        {/* Task Limit Warning for Reviewers */}
+        {isReviewer && isAtTaskLimit && (
+          <Alert className="mb-4 border-warning/50 bg-warning/10">
+            <AlertCircle className="h-4 w-4 text-warning" />
+            <AlertDescription className="text-warning">
+              You have reached the maximum of 2 active reviews. Complete or release a review before taking on more.
+            </AlertDescription>
+          </Alert>
+        )}
+
         {/* Stats */}
         <div className="grid grid-cols-4 gap-3 mb-4">
           <Card className="border-border bg-card">
@@ -114,7 +131,7 @@ export default function ReviewsPage() {
                 </div>
                 <div>
                   <p className="text-xl font-bold text-foreground">{inProgressReviews.length}</p>
-                  <p className="text-[10px] text-muted-foreground">In Review</p>
+                  <p className="text-[10px] text-muted-foreground">My Active</p>
                 </div>
               </div>
             </CardContent>
@@ -180,6 +197,7 @@ export default function ReviewsPage() {
               getStatusIcon={getStatusIcon} 
               getStatusColor={getStatusColor} 
               isReviewer={isReviewer}
+              isAtTaskLimit={isAtTaskLimit}
               expandedFeedback={expandedFeedback}
               setExpandedFeedback={setExpandedFeedback}
             />
@@ -190,6 +208,7 @@ export default function ReviewsPage() {
               getStatusIcon={getStatusIcon} 
               getStatusColor={getStatusColor} 
               isReviewer={isReviewer}
+              isAtTaskLimit={isAtTaskLimit}
               expandedFeedback={expandedFeedback}
               setExpandedFeedback={setExpandedFeedback}
             />
@@ -200,6 +219,7 @@ export default function ReviewsPage() {
               getStatusIcon={getStatusIcon} 
               getStatusColor={getStatusColor} 
               isReviewer={isReviewer}
+              isAtTaskLimit={isAtTaskLimit}
               expandedFeedback={expandedFeedback}
               setExpandedFeedback={setExpandedFeedback}
             />
@@ -210,6 +230,7 @@ export default function ReviewsPage() {
               getStatusIcon={getStatusIcon} 
               getStatusColor={getStatusColor} 
               isReviewer={isReviewer}
+              isAtTaskLimit={isAtTaskLimit}
               expandedFeedback={expandedFeedback}
               setExpandedFeedback={setExpandedFeedback}
             />
@@ -225,11 +246,12 @@ interface ReviewListProps {
   getStatusIcon: (status: ReviewStatus) => React.ReactNode
   getStatusColor: (status: ReviewStatus) => string
   isReviewer: boolean
+  isAtTaskLimit: boolean
   expandedFeedback: string | null
   setExpandedFeedback: (id: string | null) => void
 }
 
-function ReviewList({ reviews, getStatusIcon, getStatusColor, isReviewer, expandedFeedback, setExpandedFeedback }: ReviewListProps) {
+function ReviewList({ reviews, getStatusIcon, getStatusColor, isReviewer, isAtTaskLimit, expandedFeedback, setExpandedFeedback }: ReviewListProps) {
   if (reviews.length === 0) {
     return (
       <Card className="border-border bg-card">
@@ -265,6 +287,12 @@ function ReviewList({ reviews, getStatusIcon, getStatusColor, isReviewer, expand
                   </Badge>
                 </div>
                 <p className="text-xs text-muted-foreground truncate">{review.batchTitle}</p>
+                {/* Show annotator email for reviewers */}
+                {isReviewer && (
+                  <p className="text-[10px] text-muted-foreground mt-0.5">
+                    Annotator: {review.annotatorEmail}
+                  </p>
+                )}
               </div>
 
               {/* Meta */}
@@ -285,7 +313,15 @@ function ReviewList({ reviews, getStatusIcon, getStatusColor, isReviewer, expand
                   <Link href={`/dashboard/tasks/${review.taskId}`}>View</Link>
                 </Button>
                 {isReviewer && review.status === "pending" && (
-                  <Button size="sm" variant="outline" className="h-7 text-xs px-2.5">Review</Button>
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    className="h-7 text-xs px-2.5"
+                    disabled={isAtTaskLimit}
+                    title={isAtTaskLimit ? "You have reached the maximum of 2 active reviews" : "Start reviewing this task"}
+                  >
+                    Review
+                  </Button>
                 )}
                 {!isReviewer && review.status === "revision-requested" && (
                   <Button size="sm" variant="outline" className="h-7 text-xs px-2.5">Revise</Button>
