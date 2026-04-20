@@ -16,7 +16,6 @@ import {
 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Progress } from "@/components/ui/progress"
 import { TopBar } from "@/components/top-bar"
 import { StatusBadge, PriorityBadge, TaskTypeBadge } from "@/components/status-badge"
 import {
@@ -76,18 +75,17 @@ export default function DashboardPage() {
   const currentUser = user || defaultUser
   const statCards = getStatsForRole(currentUser.role)
   const activeWorkflows = workflows.filter(w => w.isActive && w.batchCount > 0).slice(0, 3)
-  const activeBatches = batches.filter(b => b.status === "in-progress").slice(0, 3)
   const myTasks = getTasksForUser(currentUser.id, currentUser.role).slice(0, 4)
   const pendingReviews = reviews.filter(r => r.status === "pending").slice(0, 4)
   const unreadNotifications = notifications.filter(n => !n.read).slice(0, 4)
 
   return (
     <>
-      <TopBar 
+      <TopBar
         title={`Welcome, ${currentUser.name.split(" ")[0]}`}
         subtitle={`${currentUser.role.charAt(0).toUpperCase() + currentUser.role.slice(1)} Dashboard`}
       />
-      
+
       <main className="flex-1 overflow-y-auto p-4 lg:p-6">
         {/* Stats Grid */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
@@ -139,22 +137,15 @@ export default function DashboardPage() {
                           const workflowBatches = batches.filter(b => b.workflowId === workflow.id)
                           const totalTasks = workflowBatches.reduce((sum, b) => sum + b.tasksTotal, 0)
                           const completedTasks = workflowBatches.reduce((sum, b) => sum + b.tasksCompleted, 0)
-                          const progress = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0
 
                           return (
                             <div key={workflow.id} className="p-3 rounded-lg border border-border bg-secondary/20">
                               <div className="flex items-center gap-2 mb-2">
-                                <PriorityBadge priority={workflow.priority} />
                                 <Link href={`/dashboard/workflows/${workflow.id}`} className="font-medium text-sm text-foreground hover:text-primary truncate flex-1">
                                   {workflow.name}
                                 </Link>
                                 <TaskTypeBadge type={workflow.type} className="text-[10px]" />
                               </div>
-                              <div className="flex items-center justify-between text-xs text-muted-foreground mb-2">
-                                <span>{workflowBatches.length} batches | {totalTasks} tasks</span>
-                                <span>{Math.round(progress)}% complete</span>
-                              </div>
-                              <Progress value={progress} className="h-1" />
                             </div>
                           )
                         })}
@@ -187,7 +178,6 @@ export default function DashboardPage() {
                         <div className="space-y-2">
                           {myTasks.map((task) => (
                             <div key={task.id} className="p-2 rounded-lg border border-border bg-secondary/20 flex items-center gap-3">
-                              <PriorityBadge priority={task.priority} className="w-7 justify-center text-[10px]" />
                               <div className="flex-1 min-w-0">
                                 <Link href={`/dashboard/tasks/${task.id}`} className="font-medium text-sm text-foreground hover:text-primary truncate block">
                                   {task.title}
@@ -315,13 +305,10 @@ function AdminDashboard() {
                     <div className="flex items-center gap-2 mb-2">
                       <PriorityBadge priority={batch.priority} />
                       <span className="font-medium text-sm text-foreground truncate flex-1">{batch.title}</span>
-                      <StatusBadge status={batch.status} className="text-[10px]" />
                     </div>
                     <div className="flex items-center justify-between text-xs text-muted-foreground mb-2">
-                      <span>{batch.tasksCompleted} / {batch.tasksTotal} tasks</span>
-                      <span>{batch.assignedAnnotatorCount} annotators</span>
+                      <span>{batch.tasksTotal} tasks</span>
                     </div>
-                    <Progress value={(batch.tasksCompleted / batch.tasksTotal) * 100} className="h-1" />
                   </div>
                 ))}
               </div>

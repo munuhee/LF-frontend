@@ -38,138 +38,146 @@ const COLORS = [
   "hsl(var(--chart-3))",
   "hsl(var(--chart-4))",
   "hsl(var(--chart-5))",
-  "hsl(var(--primary))",
 ]
 
 export default function ReportsPage() {
   const taskTypeData = analyticsData.tasksByType.map((item) => ({
-    name: item.type.split("-").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" "),
+    name: item.type
+      .split("-")
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(" "),
     value: item.count,
   }))
 
-  const performanceData = analyticsData.annotatorPerformance.map((item) => ({
-    name: item.name.split(" ")[0],
-    tasks: item.tasksCompleted,
-    quality: item.averageQuality,
-    time: item.averageTime,
-  }))
+  const totalTasksThisWeek = analyticsData.tasksCompletedByDay.reduce(
+    (acc, d) => acc + d.count,
+    0
+  )
 
   return (
     <>
       <TopBar title="Reports & Analytics" subtitle="Performance insights and metrics" />
-      
-      <main className="flex-1 overflow-y-auto p-4 lg:p-6">
+
+      <main className="flex-1 overflow-y-auto p-4 lg:p-6 space-y-6">
         {/* Date Range Filter */}
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <Select defaultValue="7d">
-              <SelectTrigger className="w-[180px] bg-card border-border">
-                <SelectValue placeholder="Time Range" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="24h">Last 24 Hours</SelectItem>
-                <SelectItem value="7d">Last 7 Days</SelectItem>
-                <SelectItem value="30d">Last 30 Days</SelectItem>
-                <SelectItem value="90d">Last 90 Days</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+        <div className="flex items-center justify-between">
+          <Select defaultValue="7d">
+            <SelectTrigger className="w-[200px] bg-card border-border">
+              <SelectValue placeholder="Select time range" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="24h">Last 24 Hours</SelectItem>
+              <SelectItem value="7d">Last 7 Days</SelectItem>
+              <SelectItem value="30d">Last 30 Days</SelectItem>
+              <SelectItem value="90d">Last 90 Days</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
-        {/* Summary Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        {/* Summary Stats - Smaller fonts */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Card className="border-border bg-card">
-            <CardContent className="p-4">
+            <CardContent className="p-5">
               <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-primary/10">
+                <div className="p-2.5 rounded-xl bg-primary/10">
                   <TrendingUp className="h-5 w-5 text-primary" />
                 </div>
-                <div>
-                  <p className="text-2xl font-bold text-foreground">
-                    {analyticsData.tasksCompletedByDay.reduce((acc, d) => acc + d.count, 0)}
+                <div className="min-w-0">
+                  <p className="text-2xl font-semibold tracking-tight text-foreground">
+                    {totalTasksThisWeek}
                   </p>
-                  <p className="text-xs text-muted-foreground">Tasks This Week</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Tasks This Week</p>
                 </div>
               </div>
             </CardContent>
           </Card>
+
           <Card className="border-border bg-card">
-            <CardContent className="p-4">
+            <CardContent className="p-5">
               <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-success/10">
-                  <Award className="h-5 w-5 text-success" />
+                <div className="p-2.5 rounded-xl bg-emerald-500/10">
+                  <Award className="h-5 w-5 text-emerald-500" />
                 </div>
-                <div>
-                  <p className="text-2xl font-bold text-foreground">
+                <div className="min-w-0">
+                  <p className="text-2xl font-semibold tracking-tight text-foreground">
                     {dashboardStats.averageQualityScore}%
                   </p>
-                  <p className="text-xs text-muted-foreground">Avg. Quality Score</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Avg. Quality Score</p>
                 </div>
               </div>
             </CardContent>
           </Card>
+
           <Card className="border-border bg-card">
-            <CardContent className="p-4">
+            <CardContent className="p-5">
               <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-blue-500/10">
-                  <Clock className="h-5 w-5 text-blue-400" />
+                <div className="p-2.5 rounded-xl bg-blue-500/10">
+                  <Clock className="h-5 w-5 text-blue-500" />
                 </div>
-                <div>
-                  <p className="text-2xl font-bold text-foreground">18m</p>
-                  <p className="text-xs text-muted-foreground">Avg. Task Time</p>
+                <div className="min-w-0">
+                  <p className="text-2xl font-semibold tracking-tight text-foreground">18m</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Avg. Task Time</p>
                 </div>
               </div>
             </CardContent>
           </Card>
+
           <Card className="border-border bg-card">
-            <CardContent className="p-4">
+            <CardContent className="p-5">
               <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-warning/10">
-                  <Users className="h-5 w-5 text-warning" />
+                <div className="p-2.5 rounded-xl bg-amber-500/10">
+                  <Users className="h-5 w-5 text-amber-500" />
                 </div>
-                <div>
-                  <p className="text-2xl font-bold text-foreground">
+                <div className="min-w-0">
+                  <p className="text-2xl font-semibold tracking-tight text-foreground">
                     {analyticsData.annotatorPerformance.length}
                   </p>
-                  <p className="text-xs text-muted-foreground">Active Annotators</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Active Annotators</p>
                 </div>
               </div>
             </CardContent>
           </Card>
         </div>
 
-        <div className="grid lg:grid-cols-2 gap-6 mb-6">
-          {/* Tasks Completed Over Time */}
+        <div className="grid lg:grid-cols-2 gap-6">
+          {/* Tasks Completed Over Time - Bar Chart */}
           <Card className="border-border bg-card">
             <CardHeader>
-              <CardTitle className="text-lg">Tasks Completed</CardTitle>
-              <CardDescription>Daily task completion over the past week</CardDescription>
+              <CardTitle>Tasks Completed</CardTitle>
+              <CardDescription>Daily completion trend over the past week</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="pl-2">
               <ChartContainer
                 config={{
                   count: {
-                    label: "Tasks",
-                    color: "hsl(var(--primary))",
+                    label: "Tasks Completed",
+                    color: "hsl(var(--chart-1))",
                   },
                 }}
-                className="h-[300px]"
+                className="h-[320px] w-full"
               >
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={analyticsData.tasksCompletedByDay}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                  <BarChart data={analyticsData.tasksCompletedByDay} margin={{ top: 20, right: 20, left: 0, bottom: 10 }}>
+                    <CartesianGrid strokeDasharray="2 2" className="stroke-border/50" />
                     <XAxis
                       dataKey="date"
-                      tickFormatter={(value) => new Date(value).toLocaleDateString("en-US", { weekday: "short" })}
-                      className="text-xs"
-                      stroke="hsl(var(--muted-foreground))"
+                      tickFormatter={(value) =>
+                        new Date(value).toLocaleDateString("en-US", { weekday: "short" })
+                      }
+                      tickLine={false}
+                      axisLine={false}
+                      tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
                     />
-                    <YAxis className="text-xs" stroke="hsl(var(--muted-foreground))" />
+                    <YAxis
+                      tickLine={false}
+                      axisLine={false}
+                      tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
+                    />
                     <ChartTooltip content={<ChartTooltipContent />} />
                     <Bar
                       dataKey="count"
-                      fill="hsl(var(--primary))"
-                      radius={[4, 4, 0, 0]}
+                      fill="hsl(var(--chart-1))"
+                      radius={[6, 6, 0, 0]}
                     />
                   </BarChart>
                 </ResponsiveContainer>
@@ -177,43 +185,48 @@ export default function ReportsPage() {
             </CardContent>
           </Card>
 
-          {/* Quality Score Trend */}
+          {/* Quality Score Trend - Line Chart */}
           <Card className="border-border bg-card">
             <CardHeader>
-              <CardTitle className="text-lg">Quality Score Trend</CardTitle>
-              <CardDescription>Average quality scores over time</CardDescription>
+              <CardTitle>Quality Score Trend</CardTitle>
+              <CardDescription>Average quality over the past week</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="pl-2">
               <ChartContainer
                 config={{
                   score: {
-                    label: "Quality Score",
+                    label: "Quality Score (%)",
                     color: "hsl(var(--chart-2))",
                   },
                 }}
-                className="h-[300px]"
+                className="h-[320px] w-full"
               >
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={analyticsData.qualityScoresTrend}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                  <LineChart data={analyticsData.qualityScoresTrend} margin={{ top: 20, right: 20, left: 0, bottom: 10 }}>
+                    <CartesianGrid strokeDasharray="2 2" className="stroke-border/50" />
                     <XAxis
                       dataKey="date"
-                      tickFormatter={(value) => new Date(value).toLocaleDateString("en-US", { weekday: "short" })}
-                      className="text-xs"
-                      stroke="hsl(var(--muted-foreground))"
+                      tickFormatter={(value) =>
+                        new Date(value).toLocaleDateString("en-US", { weekday: "short" })
+                      }
+                      tickLine={false}
+                      axisLine={false}
+                      tick={{ fontSize: 12 }}
                     />
                     <YAxis
                       domain={[80, 100]}
-                      className="text-xs"
-                      stroke="hsl(var(--muted-foreground))"
+                      tickLine={false}
+                      axisLine={false}
+                      tick={{ fontSize: 12 }}
                     />
                     <ChartTooltip content={<ChartTooltipContent />} />
                     <Line
-                      type="monotone"
+                      type="natural"
                       dataKey="score"
-                      stroke="hsl(var(--primary))"
-                      strokeWidth={2}
-                      dot={{ fill: "hsl(var(--primary))", strokeWidth: 0 }}
+                      stroke="hsl(var(--chart-2))"
+                      strokeWidth={3}
+                      dot={{ r: 4, fill: "hsl(var(--chart-2))", strokeWidth: 2, stroke: "hsl(var(--background))" }}
+                      activeDot={{ r: 6 }}
                     />
                   </LineChart>
                 </ResponsiveContainer>
@@ -222,146 +235,39 @@ export default function ReportsPage() {
           </Card>
         </div>
 
-        <div className="grid lg:grid-cols-3 gap-6">
-          {/* Tasks by Type */}
-          <Card className="border-border bg-card">
-            <CardHeader>
-              <CardTitle className="text-lg">Tasks by Type</CardTitle>
-              <CardDescription>Distribution of completed tasks</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="h-[300px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={taskTypeData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={60}
-                      outerRadius={100}
-                      paddingAngle={2}
-                      dataKey="value"
-                    >
-                      {taskTypeData.map((_, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      content={({ active, payload }) => {
-                        if (active && payload && payload.length) {
-                          return (
-                            <div className="bg-card border border-border rounded-lg p-2 shadow-lg">
-                              <p className="text-sm font-medium">{payload[0].name}</p>
-                              <p className="text-sm text-muted-foreground">
-                                {payload[0].value} tasks
-                              </p>
-                            </div>
-                          )
-                        }
-                        return null
-                      }}
-                    />
-                    <Legend
-                      formatter={(value) => (
-                        <span className="text-sm text-muted-foreground">{value}</span>
-                      )}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Annotator Performance */}
-          <Card className="border-border bg-card lg:col-span-2">
-            <CardHeader>
-              <CardTitle className="text-lg">Annotator Performance</CardTitle>
-              <CardDescription>Comparison of team performance metrics</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ChartContainer
-                config={{
-                  tasks: {
-                    label: "Tasks Completed",
-                    color: "hsl(var(--primary))",
-                  },
-                  quality: {
-                    label: "Quality Score",
-                    color: "hsl(var(--chart-2))",
-                  },
-                }}
-                className="h-[300px]"
-              >
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={performanceData}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                    <XAxis dataKey="name" className="text-xs" stroke="hsl(var(--muted-foreground))" />
-                    <YAxis className="text-xs" stroke="hsl(var(--muted-foreground))" />
-                    <ChartTooltip content={<ChartTooltipContent />} />
-                    <Legend
-                      formatter={(value) => (
-                        <span className="text-sm text-muted-foreground">{value}</span>
-                      )}
-                    />
-                    <Bar dataKey="tasks" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="quality" fill="hsl(var(--chart-2))" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </ChartContainer>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Performance Table */}
-        <Card className="border-border bg-card mt-6">
+        {/* Tasks by Type - Pie Chart */}
+        <Card className="border-border bg-card">
           <CardHeader>
-            <CardTitle className="text-lg">Team Leaderboard</CardTitle>
-            <CardDescription>Top performers this period</CardDescription>
+            <CardTitle>Tasks by Type</CardTitle>
+            <CardDescription>Distribution of annotation task types</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-border">
-                    <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Rank</th>
-                    <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Annotator</th>
-                    <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Tasks Completed</th>
-                    <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Avg. Quality</th>
-                    <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Avg. Time</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {analyticsData.annotatorPerformance
-                    .sort((a, b) => b.averageQuality - a.averageQuality)
-                    .map((annotator, index) => (
-                      <tr key={annotator.id} className="border-b border-border">
-                        <td className="py-3 px-4">
-                          <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-medium ${
-                            index === 0 ? "bg-yellow-500/20 text-yellow-500" :
-                            index === 1 ? "bg-gray-400/20 text-gray-400" :
-                            index === 2 ? "bg-orange-500/20 text-orange-400" :
-                            "bg-muted text-muted-foreground"
-                          }`}>
-                            {index + 1}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 font-medium text-foreground">{annotator.name}</td>
-                        <td className="py-3 px-4 text-muted-foreground">{annotator.tasksCompleted}</td>
-                        <td className="py-3 px-4">
-                          <span className={`font-medium ${
-                            annotator.averageQuality >= 90 ? "text-success" :
-                            annotator.averageQuality >= 80 ? "text-warning" :
-                            "text-destructive"
-                          }`}>
-                            {annotator.averageQuality}%
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-muted-foreground">{annotator.averageTime}m</td>
-                      </tr>
+            <ChartContainer config={{}} className="h-[360px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={taskTypeData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={80}
+                    outerRadius={140}
+                    dataKey="value"
+                    nameKey="name"
+                  >
+                    {taskTypeData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
-                </tbody>
-              </table>
-            </div>
+                  </Pie>
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                  <Legend
+                    verticalAlign="bottom"
+                    align="center"
+                    iconType="circle"
+                    wrapperStyle={{ paddingTop: "20px" }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </ChartContainer>
           </CardContent>
         </Card>
       </main>

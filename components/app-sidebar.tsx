@@ -81,12 +81,19 @@ export function AppSidebar() {
         </Link>
       </SidebarHeader>
 
-      <SidebarContent className="px-2">
+      <SidebarContent
+        className="px-3 py-3 gap-4
+                   group-data-[collapsible=icon]:px-1.5
+                   group-data-[collapsible=icon]:py-2
+                   group-data-[collapsible=icon]:overflow-hidden"
+      >
+
+        {/* Main Navigation */}
         <SidebarGroup>
           <SidebarGroupContent>
-            <SidebarMenu>
+            <SidebarMenu className="gap-1">
               {mainNavItems.map((item) => {
-                const isActive = pathname === item.url || 
+                const isActive = pathname === item.url ||
                   (item.url !== "/dashboard" && pathname.startsWith(item.url))
                 return (
                   <SidebarMenuItem key={item.title}>
@@ -94,10 +101,13 @@ export function AppSidebar() {
                       asChild
                       isActive={isActive}
                       tooltip={item.title}
-                      className="text-foreground hover:bg-secondary data-[active=true]:bg-primary data-[active=true]:text-primary-foreground"
+                      className="h-10 px-3 group-data-[collapsible=icon]:px-2
+                                 text-foreground hover:bg-secondary
+                                 data-[active=true]:bg-primary data-[active=true]:text-primary-foreground
+                                 group-data-[collapsible=icon]:justify-center"
                     >
                       <Link href={item.url}>
-                        <item.icon className="h-4 w-4" />
+                        <item.icon className="h-4 w-4 shrink-0" />
                         <span>{item.title}</span>
                       </Link>
                     </SidebarMenuButton>
@@ -108,11 +118,12 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        <SidebarSeparator className="bg-border" />
+        <SidebarSeparator className="bg-border mx-2 my-1" />
 
+        {/* Secondary Navigation */}
         <SidebarGroup>
           <SidebarGroupContent>
-            <SidebarMenu>
+            <SidebarMenu className="gap-1">
               {secondaryNavItems.map((item) => {
                 const isActive = pathname === item.url
                 return (
@@ -121,10 +132,13 @@ export function AppSidebar() {
                       asChild
                       isActive={isActive}
                       tooltip={item.title}
-                      className="text-foreground hover:bg-secondary data-[active=true]:bg-primary data-[active=true]:text-primary-foreground"
+                      className="h-10 px-3 group-data-[collapsible=icon]:px-2
+                                 text-foreground hover:bg-secondary
+                                 data-[active=true]:bg-primary data-[active=true]:text-primary-foreground
+                                 group-data-[collapsible=icon]:justify-center"
                     >
                       <Link href={item.url}>
-                        <item.icon className="h-4 w-4" />
+                        <item.icon className="h-4 w-4 shrink-0" />
                         <span>{item.title}</span>
                       </Link>
                     </SidebarMenuButton>
