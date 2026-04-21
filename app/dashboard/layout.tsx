@@ -1,4 +1,3 @@
-import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/app-sidebar"
 import { ScreenSizeGuard } from "@/components/screen-size-guard"
 
@@ -9,14 +8,12 @@ export default function DashboardLayout({
 }) {
   return (
     <ScreenSizeGuard>
-      <SidebarProvider>
-        <div className="flex min-h-screen w-full">
-          <AppSidebar />
-          <SidebarInset className="flex-1 flex flex-col">
-            {children}
-          </SidebarInset>
-        </div>
-      </SidebarProvider>
+      <div className="flex h-screen w-full overflow-hidden">
+        <AppSidebar />
+        <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
+          {children}
+        </main>
+      </div>
     </ScreenSizeGuard>
   )
 }

@@ -10,169 +10,137 @@ import {
   Settings,
   HelpCircle,
   LogOut,
-  Workflow,
+  Bell,
+  Users,
+  ShieldCheck,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react"
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarFooter,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarHeader,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  SidebarSeparator,
-} from "@/components/ui/sidebar"
 import { useAuth } from "@/lib/auth-context"
-import { defaultUser } from "@/lib/dummy-data"
+import { useState } from "react"
 
 const getNavItems = (role: string) => {
-  const baseItems = [
-    { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
-    { title: "Workflows", url: "/dashboard/workflows", icon: Workflow },
+  const base = [{ title: "Dashboard", url: "/dashboard", icon: LayoutDashboard }]
+
+  if (role === "annotator") return [
+    ...base,
+    { title: "Work", url: "/dashboard/workflows", icon: ListTodo },
+    { title: "Notifications", url: "/dashboard/notifications", icon: Bell },
   ]
 
-  if (role === "annotator") {
-    return [
-      ...baseItems,
-      { title: "My Tasks", url: "/dashboard/tasks", icon: ListTodo },
-    ]
-  }
-
-  if (role === "reviewer") {
-    return [
-      ...baseItems,
-      { title: "Reviews", url: "/dashboard/reviews", icon: CheckSquare },
-      { title: "Reports", url: "/dashboard/reports", icon: BarChart3 },
-    ]
-  }
-
-  // Admin sees everything
-  return [
-    ...baseItems,
-    { title: "Tasks", url: "/dashboard/tasks", icon: ListTodo },
+  if (role === "reviewer") return [
+    ...base,
     { title: "Reviews", url: "/dashboard/reviews", icon: CheckSquare },
     { title: "Reports", url: "/dashboard/reports", icon: BarChart3 },
+    { title: "Team", url: "/dashboard/team", icon: Users },
+    { title: "Notifications", url: "/dashboard/notifications", icon: Bell },
+  ]
+
+  return [
+    ...base,
+    { title: "Work", url: "/dashboard/workflows", icon: ListTodo },
+    { title: "Reviews", url: "/dashboard/reviews", icon: CheckSquare },
+    { title: "Reports", url: "/dashboard/reports", icon: BarChart3 },
+    { title: "Team", url: "/dashboard/team", icon: Users },
+    { title: "Notifications", url: "/dashboard/notifications", icon: Bell },
+    { title: "Admin", url: "/dashboard/admin", icon: ShieldCheck },
   ]
 }
 
-const secondaryNavItems = [
+const secondaryNav = [
   { title: "Settings", url: "/dashboard/settings", icon: Settings },
   { title: "Help", url: "/dashboard/help", icon: HelpCircle },
 ]
 
 export function AppSidebar() {
   const pathname = usePathname()
-  const { user } = useAuth()
-  const currentUser = user || defaultUser
-  const mainNavItems = getNavItems(currentUser.role)
+  const { user, logout } = useAuth()
+  const [collapsed, setCollapsed] = useState(false)
+  const mainNav = getNavItems(user?.role ?? "annotator")
+
+  const initials = user
+    ? user.name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()
+    : "?"
+
+  const NavItem = ({ item }: { item: typeof mainNav[0] }) => {
+    const active = pathname === item.url || (item.url !== "/dashboard" && pathname.startsWith(item.url))
+    return (
+      <Link
+        href={item.url}
+        title={collapsed ? item.title : undefined}
+        className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors overflow-hidden
+          ${collapsed ? "justify-center px-2" : ""}
+          ${active
+            ? "bg-primary text-primary-foreground"
+            : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+          }`}
+      >
+        <item.icon className="h-4 w-4 shrink-0" />
+        {!collapsed && <span className="truncate">{item.title}</span>}
+      </Link>
+    )
+  }
 
   return (
-    <Sidebar className="border-r border-border bg-card" collapsible="icon">
-      <SidebarHeader className="p-3">
-        <Link href="/dashboard" className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary flex-shrink-0">
-            <span className="text-sm font-bold text-primary-foreground">LF</span>
-          </div>
-          <span className="text-base font-semibold text-foreground group-data-[collapsible=icon]:hidden">
-            LabelForge
-          </span>
-        </Link>
-      </SidebarHeader>
-
-      <SidebarContent
-        className="px-3 py-3 gap-4
-                   group-data-[collapsible=icon]:px-1.5
-                   group-data-[collapsible=icon]:py-2
-                   group-data-[collapsible=icon]:overflow-hidden"
-      >
-
-        {/* Main Navigation */}
-        <SidebarGroup>
-          <SidebarGroupContent>
-            <SidebarMenu className="gap-1">
-              {mainNavItems.map((item) => {
-                const isActive = pathname === item.url ||
-                  (item.url !== "/dashboard" && pathname.startsWith(item.url))
-                return (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton
-                      asChild
-                      isActive={isActive}
-                      tooltip={item.title}
-                      className="h-10 px-3 group-data-[collapsible=icon]:px-2
-                                 text-foreground hover:bg-secondary
-                                 data-[active=true]:bg-primary data-[active=true]:text-primary-foreground
-                                 group-data-[collapsible=icon]:justify-center"
-                    >
-                      <Link href={item.url}>
-                        <item.icon className="h-4 w-4 shrink-0" />
-                        <span>{item.title}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                )
-              })}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        <SidebarSeparator className="bg-border mx-2 my-1" />
-
-        {/* Secondary Navigation */}
-        <SidebarGroup>
-          <SidebarGroupContent>
-            <SidebarMenu className="gap-1">
-              {secondaryNavItems.map((item) => {
-                const isActive = pathname === item.url
-                return (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton
-                      asChild
-                      isActive={isActive}
-                      tooltip={item.title}
-                      className="h-10 px-3 group-data-[collapsible=icon]:px-2
-                                 text-foreground hover:bg-secondary
-                                 data-[active=true]:bg-primary data-[active=true]:text-primary-foreground
-                                 group-data-[collapsible=icon]:justify-center"
-                    >
-                      <Link href={item.url}>
-                        <item.icon className="h-4 w-4 shrink-0" />
-                        <span>{item.title}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                )
-              })}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-      </SidebarContent>
-
-      <SidebarFooter className="p-3">
-        <SidebarSeparator className="mb-3 bg-border" />
-        <div className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/20 text-primary text-xs font-medium flex-shrink-0">
-            {currentUser.name.split(" ").map((n) => n[0]).join("")}
-          </div>
-          <div className="flex-1 min-w-0 group-data-[collapsible=icon]:hidden">
-            <p className="text-sm font-medium text-foreground truncate">
-              {currentUser.name}
-            </p>
-            <p className="text-xs text-muted-foreground truncate capitalize">
-              {`— ${currentUser.role.charAt(0).toUpperCase() + currentUser.role.slice(1)}`}
-            </p>
-          </div>
-          <Link
-            href="/"
-            className="p-1.5 rounded-md hover:bg-secondary transition-colors group-data-[collapsible=icon]:hidden"
-            title="Sign out"
-          >
-            <LogOut className="h-4 w-4 text-muted-foreground" />
-          </Link>
+    <aside
+      className={`relative flex flex-col h-screen border-r border-border bg-card transition-all duration-200 shrink-0 overflow-hidden
+        ${collapsed ? "w-[56px]" : "w-[220px]"}`}
+    >
+      {/* Header */}
+      <div className={`flex items-center h-14 border-b border-border px-3 shrink-0 ${collapsed ? "justify-center" : "gap-2"}`}>
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary shrink-0">
+          <span className="text-sm font-bold text-primary-foreground">LF</span>
         </div>
-      </SidebarFooter>
-    </Sidebar>
+        {!collapsed && (
+          <span className="text-base font-semibold text-foreground truncate">LabelForge</span>
+        )}
+      </div>
+
+      {/* Toggle button */}
+      <button
+        onClick={() => setCollapsed(!collapsed)}
+        className={`absolute top-3.5 right-2 p-1 rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors z-10
+          ${collapsed ? "right-1/2 translate-x-1/2" : ""}`}
+        title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+      >
+        {collapsed
+          ? <PanelLeftOpen className="h-4 w-4" />
+          : <PanelLeftClose className="h-4 w-4" />
+        }
+      </button>
+
+      {/* Main nav */}
+      <nav className="flex-1 overflow-y-auto overflow-x-hidden px-2 py-3 space-y-0.5">
+        {mainNav.map((item) => <NavItem key={item.url} item={item} />)}
+
+        <div className="my-2 border-t border-border" />
+
+        {secondaryNav.map((item) => <NavItem key={item.url} item={item} />)}
+      </nav>
+
+      {/* Footer / user */}
+      <div className="border-t border-border px-2 py-3 shrink-0">
+        <div className={`flex items-center gap-2 rounded-lg px-2 py-2 ${collapsed ? "justify-center" : ""}`}>
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/20 text-primary text-xs font-semibold shrink-0">
+            {initials}
+          </div>
+          {!collapsed && (
+            <>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-foreground truncate">{user?.name ?? "Loading..."}</p>
+                <p className="text-xs text-muted-foreground capitalize truncate">{user?.role ?? ""}</p>
+              </div>
+              <button
+                onClick={logout}
+                title="Sign out"
+                className="p-1.5 rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors shrink-0"
+              >
+                <LogOut className="h-4 w-4" />
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    </aside>
   )
 }

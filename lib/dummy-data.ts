@@ -148,26 +148,6 @@ export const workflows: Workflow[] = [
     taskCount: 80,
     createdAt: "2026-04-01",
   },
-  {
-    id: "wf_002",
-    name: "LLM Training Data",
-    description: "Generate high-quality training data for language model improvements",
-    type: "llm-training",
-    isActive: true,
-    batchCount: 0,
-    taskCount: 0,
-    createdAt: "2026-04-05",
-  },
-  {
-    id: "wf_003",
-    name: "Multimodal Assessment",
-    description: "Evaluate alignment between images, text, and other modalities",
-    type: "multimodal",
-    isActive: true,
-    batchCount: 0,
-    taskCount: 0,
-    createdAt: "2026-04-08",
-  },
 ]
 
 // Priority uses decimal 0-1, displayed as P0-P4
@@ -178,7 +158,7 @@ export const workflows: Workflow[] = [
 // P4 = 0-0.29 (lowest)
 
 export const batches: Batch[] = [
-  // Agentic AI Evaluation workflow batches (wf_001)
+  // ============ Agentic AI Evaluation (wf_001) - 2 batches ============
   {
     id: "batch_001",
     workflowId: "wf_001",
@@ -194,21 +174,8 @@ export const batches: Batch[] = [
     createdAt: "2026-04-10",
     assignedAnnotatorCount: 5,
   },
-  {
-    id: "batch_008",
-    workflowId: "wf_001",
-    workflowName: "Agentic AI Evaluation",
-    title: "Agent Task Completion - E-commerce Flows",
-    description: "Complete e-commerce tasks including product search, comparison, and checkout processes",
-    taskType: "agentic-ai",
-    priority: 0.9,
-    workloadEstimate: 35,
-    status: "in-progress",
-    tasksTotal: 30,
-    tasksCompleted: 12,
-    createdAt: "2026-04-12",
-    assignedAnnotatorCount: 3,
-  },
+
+
 ]
 
 // Tasks - each task has ownership (annotator email, reviewer email)
@@ -487,15 +454,6 @@ export function getNotificationsForUser(userId: string, role: string): Notificat
         createdAt: "2026-04-19T07:00:00Z",
         actionUrl: "/dashboard",
       },
-      {
-        id: "notif_203",
-        type: "priority-warning",
-        title: "LLM & Multimodal Workflows",
-        message: "LLM Training Data and Multimodal Assessment have 0 active tasks",
-        read: false,
-        createdAt: "2026-04-19T06:00:00Z",
-        actionUrl: "/dashboard/workflows",
-      }
     )
   }
 

@@ -1,8 +1,9 @@
 "use client"
 
+import { useEffect, useState } from "react"
+import Link from "next/link"
 import { Bell } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { SidebarTrigger } from "@/components/ui/sidebar"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,7 +14,8 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Badge } from "@/components/ui/badge"
 import { ThemeToggle } from "@/components/theme-toggle"
-import { notifications } from "@/lib/dummy-data"
+import { api } from "@/lib/api"
+import type { Notification } from "@/lib/types"
 
 interface TopBarProps {
   title: string
@@ -21,12 +23,17 @@ interface TopBarProps {
 }
 
 export function TopBar({ title, subtitle }: TopBarProps) {
+  const [notifications, setNotifications] = useState<Notification[]>([])
+
+  useEffect(() => {
+    api.notifications.list().then(setNotifications).catch(() => {})
+  }, [])
+
   const unreadCount = notifications.filter((n) => !n.read).length
 
   return (
     <header className="sticky top-0 z-40 flex h-14 items-center justify-between border-b border-border bg-card px-4">
       <div className="flex items-center gap-3">
-        <SidebarTrigger />
         <div>
           <h1 className="text-base font-semibold text-foreground">{title}</h1>
           {subtitle && (
@@ -62,27 +69,33 @@ export function TopBar({ title, subtitle }: TopBarProps) {
               )}
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            {notifications.slice(0, 5).map((notification) => (
-              <DropdownMenuItem
-                key={notification.id}
-                className="flex flex-col items-start gap-1 py-2 cursor-pointer"
-              >
-                <div className="flex items-center gap-2 w-full">
-                  {!notification.read && (
-                    <span className="h-1.5 w-1.5 rounded-full bg-primary flex-shrink-0" />
-                  )}
-                  <span className={`text-sm font-medium ${!notification.read ? "" : "text-muted-foreground"}`}>
-                    {notification.title}
-                  </span>
-                </div>
-                <span className="text-xs text-muted-foreground line-clamp-1 ml-3.5">
-                  {notification.message}
-                </span>
+            {notifications.length === 0 ? (
+              <DropdownMenuItem className="text-muted-foreground text-sm justify-center py-3">
+                No notifications
               </DropdownMenuItem>
-            ))}
+            ) : (
+              notifications.slice(0, 5).map((notification) => (
+                <DropdownMenuItem
+                  key={notification.id}
+                  className="flex flex-col items-start gap-1 py-2 cursor-pointer"
+                >
+                  <div className="flex items-center gap-2 w-full">
+                    {!notification.read && (
+                      <span className="h-1.5 w-1.5 rounded-full bg-primary flex-shrink-0" />
+                    )}
+                    <span className={`text-sm font-medium ${!notification.read ? "" : "text-muted-foreground"}`}>
+                      {notification.title}
+                    </span>
+                  </div>
+                  <span className="text-xs text-muted-foreground line-clamp-1 ml-3.5">
+                    {notification.message}
+                  </span>
+                </DropdownMenuItem>
+              ))
+            )}
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="justify-center text-primary text-sm">
-              View all notifications
+            <DropdownMenuItem asChild className="justify-center text-primary text-sm">
+              <Link href="/dashboard/notifications">View all notifications</Link>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

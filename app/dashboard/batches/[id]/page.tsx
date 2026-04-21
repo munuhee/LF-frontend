@@ -1,204 +1,182 @@
-"use client"
+'use client'
 
-import { use, useState } from "react"
-import Link from "next/link"
-import { ArrowLeft, Calendar, Clock, Users, ExternalLink, Play, Pause, CheckCircle, Workflow } from "lucide-react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Progress } from "@/components/ui/progress"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { TopBar } from "@/components/top-bar"
-import { StatusBadge, PriorityBadge, TaskTypeBadge } from "@/components/status-badge"
-import { CreateTaskModal } from "@/components/create-task-modal"
-import { batches, tasks, defaultUser, getUnclaimedTasksFromBatch } from "@/lib/dummy-data"
-import { useAuth } from "@/lib/auth-context"
-import type { Task } from "@/lib/types"
+import { use, useEffect, useState } from 'react'
+import Link from 'next/link'
+import { ArrowLeft, Clock, ExternalLink, CheckCircle, Play, Pause } from 'lucide-react'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { TopBar } from '@/components/top-bar'
+import { StatusBadge, PriorityBadge, TaskTypeBadge } from '@/components/status-badge'
+import { api } from '@/lib/api'
+import { useAuth } from '@/lib/auth-context'
+import type { Batch, Task } from '@/lib/types'
+
+interface BatchDetail extends Batch {
+  instructions?: string
+  tasks: Task[]
+}
 
 export default function BatchDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const { user } = useAuth()
-  const currentUser = user || defaultUser
-  const batch = batches.find((b) => b.id === id)
-  const [batchTasks, setBatchTasks] = useState<Task[]>(tasks.filter((t) => t.batchId === id))
+  const [batch, setBatch] = useState<BatchDetail | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  // Get tasks based on role
-  const allBatchTasks = batchTasks
+  useEffect(() => {
+    api.batches.get(id)
+      .then(setBatch)
+      .catch((e: unknown) => setError(e instanceof Error ? e.message : 'Failed to load'))
+      .finally(() => setIsLoading(false))
+  }, [id])
 
-  // For annotators: only show their own tasks, not unclaimed ones
-  // Unclaimed tasks are shown separately for claiming
-  const myTasks = currentUser.role === "annotator"
-    ? allBatchTasks.filter(t => t.annotatorId === currentUser.id)
-    : allBatchTasks
-
-  // Get unclaimed tasks for annotators to claim
-  const unclaimedTasks = getUnclaimedTasksFromBatch(id)
-
-  // Handle new task creation
-  const handleTaskCreated = (newTask: Task) => {
-    setBatchTasks([...batchTasks, newTask])
-  }
-
-  if (!batch) {
-    return (
-      <>
-        <TopBar title="Batch Not Found" />
-        <main className="flex-1 flex items-center justify-center">
-          <div className="text-center">
-            <h2 className="text-xl font-semibold mb-2">Batch not found</h2>
-            <p className="text-muted-foreground mb-4">
-              The batch you&apos;re looking for doesn&apos;t exist.
-            </p>
-            <Button asChild>
-              <Link href="/dashboard/batches">Back to Batches</Link>
-            </Button>
-          </div>
-        </main>
-      </>
-    )
-  }
-
-  const inProgressTasks = myTasks.filter(t => ["in-progress", "paused"].includes(t.status))
-  const submittedTasks = myTasks.filter(t => ["submitted", "revision-requested"].includes(t.status))
-  const completedTasks = myTasks.filter(t => ["approved", "rejected"].includes(t.status))
-
-  return (
+  if (isLoading) return (
     <>
-      <TopBar title={batch.title} subtitle={`Batch ${batch.id}`} />
+      <TopBar title="Loading..." />
+      <main className="flex-1 flex items-center justify-center"><p className="text-muted-foreground">Loading...</p></main>
+    </>
+  )
 
-      <main className="flex-1 overflow-y-auto p-4 lg:p-6">
-        {/* Back Button */}
-        <Button variant="ghost" size="sm" className="mb-4" asChild>
-          <Link href="/dashboard/batches" className="flex items-center gap-2">
-            <ArrowLeft className="h-4 w-4" />
-            Back to Batches
-          </Link>
-        </Button>
-
-        {/* Available Tasks to Claim (for annotators) */}
-        {currentUser.role === "annotator" && unclaimedTasks.length > 0 && (
-          <Card className="border-border bg-card mb-6">
-            <CardHeader>
-              <CardTitle className="text-lg">Available Tasks</CardTitle>
-              <CardDescription>
-                Select a task from this batch to start working on it
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <TaskList tasks={unclaimedTasks} showClaimButton currentUser={currentUser} />
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Empty State */}
-        {myTasks.length === 0 && unclaimedTasks.length === 0 && (
-          <Card className="border-border bg-card">
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <p className="text-muted-foreground">No tasks available in this batch</p>
-            </CardContent>
-          </Card>
-        )}
+  if (error) return (
+    <>
+      <TopBar title="Batch" />
+      <main className="flex-1 flex items-center justify-center">
+        <div className="flex items-center justify-center py-12 text-destructive text-sm">{error}</div>
       </main>
     </>
   )
-}
 
-interface TaskListProps {
-  tasks: Task[]
-  showClaimButton?: boolean
-  onTaskDeleted?: (taskId: string) => void
-  currentUser: typeof defaultUser
-}
+  if (!batch) return (
+    <>
+      <TopBar title="Batch Not Found" />
+      <main className="flex-1 flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold mb-2">Batch not found</h2>
+          <Button asChild><Link href="/dashboard/batches">Back to Batches</Link></Button>
+        </div>
+      </main>
+    </>
+  )
 
-function TaskList({ tasks, showClaimButton = false, onTaskDeleted, currentUser }: TaskListProps) {
-  if (tasks.length === 0) {
-    return (
-      <Card className="border-border bg-card">
-        <CardContent className="flex flex-col items-center justify-center py-12">
-          <p className="text-muted-foreground">No tasks found</p>
-        </CardContent>
-      </Card>
-    )
-  }
+  const myTasks = user?.role === 'annotator'
+    ? batch.tasks.filter(t => t.annotatorId === user.id)
+    : batch.tasks
 
   return (
-    <div className="space-y-3">
-      {tasks.map((task) => (
-        <Card key={task.id} className="border-border bg-card hover:border-primary/50 transition-colors">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between gap-4">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-3 mb-1">
-                  <PriorityBadge priority={task.priority} />
-                  <h4 className="font-medium text-foreground truncate">{task.title}</h4>
-                  <StatusBadge status={task.status} />
+    <>
+      <TopBar title={batch.title} subtitle={`Batch · ${batch.workflowName}`} />
+      <main className="flex-1 overflow-y-auto p-4 lg:p-6">
+        <Button variant="ghost" size="sm" className="mb-4" asChild>
+          <Link href="/dashboard/batches" className="flex items-center gap-2">
+            <ArrowLeft className="h-4 w-4" />Back to Batches
+          </Link>
+        </Button>
+
+        <div className="grid lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 space-y-6">
+            {/* Batch Info */}
+            <Card className="border-border bg-card">
+              <CardHeader>
+                <div className="flex items-center gap-2 mb-2">
+                  <TaskTypeBadge type={batch.taskType} />
+                  <StatusBadge status={batch.status} />
                 </div>
-                <p className="text-sm text-muted-foreground line-clamp-1">
-                  {task.description}
-                </p>
-                <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
-                  <span className="flex items-center gap-1">
-                    <Clock className="h-3.5 w-3.5" />
-                    ~{task.estimatedDuration} min
-                  </span>
-                  {task.actualDuration && (
-                    <span>Actual: {task.actualDuration} min</span>
-                  )}
-                  {task.qualityScore && (
-                    <span className="text-success">Score: {task.qualityScore}%</span>
-                  )}
-                  {/* Show ownership info for admins */}
-                  {currentUser.role === "admin" && task.annotatorEmail && (
-                    <span>Annotator: {task.annotatorEmail}</span>
-                  )}
-                  {currentUser.role === "admin" && task.reviewerEmail && (
-                    <span>Reviewer: {task.reviewerEmail}</span>
-                  )}
+                <CardTitle>{batch.title}</CardTitle>
+                <CardDescription>{batch.description}</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {batch.instructions && (
+                  <div>
+                    <h4 className="text-sm font-medium mb-2">Instructions</h4>
+                    <pre className="text-sm text-muted-foreground whitespace-pre-wrap bg-secondary/30 rounded-lg p-3">
+                      {batch.instructions}
+                    </pre>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Tasks */}
+            {myTasks.length === 0 ? (
+              <Card className="border-border bg-card">
+                <CardContent className="flex items-center justify-center py-12">
+                  <p className="text-muted-foreground">No tasks available</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-2">
+                <h3 className="text-sm font-semibold">Tasks ({myTasks.length})</h3>
+                {myTasks.map(task => (
+                  <Card key={task.id} className="border-border bg-card hover:border-primary/50 transition-colors">
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-3 mb-1">
+                            <PriorityBadge priority={task.priority} />
+                            <h4 className="font-medium text-foreground truncate">{task.title}</h4>
+                            <StatusBadge status={task.status} />
+                          </div>
+                          <p className="text-sm text-muted-foreground line-clamp-1">{task.description}</p>
+                          <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
+                            <span className="flex items-center gap-1"><Clock className="h-3.5 w-3.5" />~{task.estimatedDuration}m</span>
+                            {task.qualityScore && <span className="text-success">Score: {task.qualityScore}%</span>}
+                            {user?.role === 'admin' && task.annotatorEmail && <span>Annotator: {task.annotatorEmail}</span>}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {task.externalUrl && (
+                            <Button variant="outline" size="sm" asChild>
+                              <Link href={task.externalUrl} target="_blank"><ExternalLink className="h-4 w-4 mr-1" />Open</Link>
+                            </Button>
+                          )}
+                          <Button size="sm" asChild>
+                            <Link href={`/dashboard/tasks/${task.id}`}>
+                              {task.status === 'in-progress' ? (
+                                <><Pause className="h-4 w-4 mr-1" />Continue</>
+                              ) : task.status === 'unclaimed' ? (
+                                <><Play className="h-4 w-4 mr-1" />Start</>
+                              ) : (
+                                <><CheckCircle className="h-4 w-4 mr-1" />View</>
+                              )}
+                            </Link>
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Sidebar */}
+          <div className="space-y-4">
+            <Card className="border-border bg-card">
+              <CardHeader><CardTitle className="text-base">Batch Stats</CardTitle></CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Total Tasks</span>
+                  <span className="font-medium">{batch.tasksTotal}</span>
                 </div>
-              </div>
-              <div className="flex items-center gap-2">
-                {task.externalUrl && (
-                  <Button variant="outline" size="sm" asChild>
-                    <Link href={task.externalUrl} target="_blank">
-                      <ExternalLink className="h-4 w-4 mr-1" />
-                      Open
-                    </Link>
-                  </Button>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Completed</span>
+                  <span className="font-medium">{batch.tasksCompleted}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Priority</span>
+                  <PriorityBadge priority={batch.priority} />
+                </div>
+                {batch.workloadEstimate > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Est. Workload</span>
+                    <span className="font-medium">{batch.workloadEstimate}h</span>
+                  </div>
                 )}
-                {currentUser.role === "admin" && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                  >
-                    Delete
-                  </Button>
-                )}
-                <Button size="sm" asChild>
-                  <Link href={`/dashboard/tasks/${task.id}`}>
-                    {showClaimButton ? (
-                      <>
-                        <Play className="h-4 w-4 mr-1" />
-                        Claim
-                      </>
-                    ) : task.status === "in-progress" ? (
-                      <>
-                        <Pause className="h-4 w-4 mr-1" />
-                        Continue
-                      </>
-                    ) : task.status === "revision-requested" ? (
-                      "Revise"
-                    ) : (
-                      <>
-                        <CheckCircle className="h-4 w-4 mr-1" />
-                        View
-                      </>
-                    )}
-                  </Link>
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      ))}
-    </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </main>
+    </>
   )
 }
