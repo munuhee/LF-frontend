@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import mongoose from 'mongoose'
 import { connectToDatabase } from '@/lib/mongodb'
 import Workflow from '@/lib/models/Workflow'
 import Batch from '@/lib/models/Batch'
@@ -19,9 +20,9 @@ export async function GET(req: NextRequest) {
       filter.isActive = true
     }
 
-    // Annotators only see workflows they are assigned to
-    if (role === 'annotator' && userId) {
-      filter.assignedUsers = userId
+    // Annotators and reviewers only see workflows they are assigned to
+    if ((role === 'annotator' || role === 'reviewer') && userId) {
+      filter.assignedUsers = new mongoose.Types.ObjectId(userId)
     }
 
     const workflows = await Workflow.find(filter).sort({ createdAt: -1 }).lean()

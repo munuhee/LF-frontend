@@ -239,7 +239,7 @@ export default function AdminPage() {
                         </div>
                       )}
                       {assignedUserObjs.length === 0 && (
-                        <p className="text-[10px] text-muted-foreground italic">No annotators assigned — not visible to annotators</p>
+                        <p className="text-[10px] text-muted-foreground italic">No users assigned — not visible to annotators or reviewers</p>
                       )}
                     </CardContent>
                   </Card>
@@ -357,7 +357,7 @@ export default function AdminPage() {
             <DialogDescription>Control who can see and work on "{assignWorkflow?.name}"</DialogDescription>
           </DialogHeader>
           <div className="space-y-2 max-h-[400px] overflow-y-auto">
-            {users.filter(u => u.role === 'annotator').map(u => {
+            {users.filter(u => u.role === 'annotator' || u.role === 'reviewer').map(u => {
               const isAssigned = ((assignWorkflow?.assignedUsers || []) as string[]).includes(u.id)
               return (
                 <div key={u.id} className="flex items-center justify-between p-3 rounded-lg border border-border">
@@ -378,8 +378,8 @@ export default function AdminPage() {
                 </div>
               )
             })}
-            {users.filter(u => u.role === 'annotator').length === 0 && (
-              <p className="text-sm text-muted-foreground text-center py-4">No annotators in the system yet</p>
+            {users.filter(u => u.role === 'annotator' || u.role === 'reviewer').length === 0 && (
+              <p className="text-sm text-muted-foreground text-center py-4">No annotators or reviewers in the system yet</p>
             )}
           </div>
           <DialogFooter>

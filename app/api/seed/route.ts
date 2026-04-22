@@ -65,13 +65,14 @@ export async function POST() {
       },
     ])
 
-    // Create workflows
+    // Create workflows — assign both annotator and reviewer to each
     const [agenticWorkflow, llmWorkflow] = await Workflow.insertMany([
       {
         name: 'Agentic AI Evaluation',
         description: 'Evaluate and train AI agents on web-based tasks',
         type: 'agentic-ai',
         isActive: true,
+        assignedUsers: [annotator._id, reviewer._id],
         createdBy: admin._id,
       },
       {
@@ -79,6 +80,7 @@ export async function POST() {
         description: 'Train large language models with high-quality responses',
         type: 'llm-training',
         isActive: true,
+        assignedUsers: [annotator._id, reviewer._id],
         createdBy: admin._id,
       },
     ])
@@ -122,12 +124,12 @@ export async function POST() {
       batchTitle: batch1.title,
       workflowId: agenticWorkflow._id,
       workflowName: 'Agentic AI Evaluation',
-      title: 'Navigate to booking page and fill form',
-      description: 'Complete a hotel booking task on example-travel.com. Fill in dates, guest count, and preferences.',
+      title: 'Search and book a hotel on Booking.com',
+      description: 'Navigate to Booking.com and search for a hotel in New York for 2 adults, 2 nights. Filter by rating ≥ 8.0, select a hotel, and capture the booking details page.',
       taskType: 'agentic-ai',
       status: 'unclaimed',
       priority: 0.95,
-      externalUrl: 'https://agentic-eval.labelforge.ai/session/task_001',
+      externalUrl: 'https://www.booking.com',
       estimatedDuration: 25,
     })
 
@@ -136,12 +138,12 @@ export async function POST() {
       batchTitle: batch1.title,
       workflowId: agenticWorkflow._id,
       workflowName: 'Agentic AI Evaluation',
-      title: 'Search and compare flight prices',
-      description: 'Navigate to a flight comparison website and find the cheapest round-trip flight for given criteria.',
+      title: 'Find cheapest round-trip flight on Google Flights',
+      description: 'Go to Google Flights and find the cheapest round-trip flight from London (LHR) to New York (JFK) for next month, economy class. Screenshot the results.',
       taskType: 'agentic-ai',
       status: 'submitted',
       priority: 0.9,
-      externalUrl: 'https://agentic-eval.labelforge.ai/session/task_002',
+      externalUrl: 'https://www.google.com/flights',
       estimatedDuration: 30,
       annotatorId: annotator._id,
       annotatorEmail: annotator.email,
@@ -156,12 +158,12 @@ export async function POST() {
       batchTitle: batch1.title,
       workflowId: agenticWorkflow._id,
       workflowName: 'Agentic AI Evaluation',
-      title: 'Complete online checkout flow',
-      description: 'Add items to cart, apply promo code, and complete checkout with test credentials.',
+      title: 'Add product to cart and reach checkout on Amazon',
+      description: 'Go to Amazon.com, search for "wireless headphones under $50", add the top-rated result to cart, and navigate to the checkout page. Screenshot each step.',
       taskType: 'agentic-ai',
       status: 'approved',
       priority: 0.85,
-      externalUrl: 'https://agentic-eval.labelforge.ai/session/task_003',
+      externalUrl: 'https://www.amazon.com',
       estimatedDuration: 20,
       annotatorId: annotator._id,
       annotatorEmail: annotator.email,
