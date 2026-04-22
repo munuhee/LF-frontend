@@ -1,6 +1,6 @@
 import mongoose, { Schema, Document, Model } from 'mongoose'
 
-export type ReviewStatus = 'pending' | 'in-review' | 'approved' | 'rejected' | 'revision-requested'
+export type ReviewStatus = 'pending' | 'in-review' | 'approved' | 'rejected' | 'revision-requested' | 'escalated' | 'on-hold' | 'flagged'
 export type ReviewDecision = 'approve' | 'reject' | 'request-rework' | 'escalate' | 'hold' | 'flag'
 
 export interface IReview extends Document {
@@ -46,7 +46,7 @@ const ReviewSchema = new Schema<IReview>(
     reviewerName: { type: String },
     status: {
       type: String,
-      enum: ['pending', 'in-review', 'approved', 'rejected', 'revision-requested'],
+      enum: ['pending', 'in-review', 'approved', 'rejected', 'revision-requested', 'escalated', 'on-hold', 'flagged'],
       default: 'pending',
     },
     decision: { type: String, enum: ['approve', 'reject', 'request-rework', 'escalate', 'hold', 'flag'] },

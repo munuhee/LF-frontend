@@ -38,6 +38,7 @@ export interface Workflow {
   description: string
   type: WorkflowType
   isActive: boolean
+  assignedUsers?: string[]
   batchCount: number
   taskCount: number
   createdAt: string
@@ -82,6 +83,7 @@ export interface Task {
   qualityScore?: number
   notes?: string
   submissionData?: Record<string, unknown>
+  extensionData?: Record<string, unknown>
   screenshots?: string[]
   startedAt?: string
   completedAt?: string
@@ -114,7 +116,7 @@ export interface Review {
   reviewerId?: string
   reviewerEmail?: string
   reviewerName?: string
-  status: 'pending' | 'in-review' | 'approved' | 'rejected' | 'revision-requested'
+  status: 'pending' | 'in-review' | 'approved' | 'rejected' | 'revision-requested' | 'escalated' | 'on-hold' | 'flagged'
   decision?: 'approve' | 'reject' | 'request-rework' | 'escalate' | 'hold' | 'flag'
   comments?: string
   reasonCode?: string

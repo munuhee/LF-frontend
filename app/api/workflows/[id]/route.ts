@@ -60,6 +60,40 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   }
 }
 
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const role = req.headers.get('x-user-role')
+    if (role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+    const { id } = await params
+    const body = await req.json()
+    await connectToDatabase()
+
+    const workflow = await Workflow.findById(id)
+    if (!workflow) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+    if (body.action === 'assign') {
+      const { userId } = body
+      if (!workflow.assignedUsers.map((u: unknown) => u?.toString()).includes(userId)) {
+        workflow.assignedUsers.push(userId)
+        await workflow.save()
+      }
+    } else if (body.action === 'unassign') {
+      const { userId } = body
+      workflow.assignedUsers = workflow.assignedUsers.filter((u: unknown) => u?.toString() !== userId) as typeof workflow.assignedUsers
+      await workflow.save()
+    }
+
+    return NextResponse.json({
+      id: workflow._id.toString(),
+      assignedUsers: workflow.assignedUsers.map((u: unknown) => u?.toString()),
+    })
+  } catch (err) {
+    console.error('[workflows/[id] PATCH]', err)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params

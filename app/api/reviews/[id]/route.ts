@@ -90,9 +90,30 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
           message: `Your task "${review.taskTitle}" needs revision. ${comments || ''}`,
           actionUrl: `/dashboard/tasks/${review.taskId}`,
         })
-      } else {
-        // escalate / hold / flag — keep in-review status, record decision
-        review.status = 'in-review'
+      } else if (decision === 'escalate') {
+        review.status = 'escalated'
+        await Task.findByIdAndUpdate(review.taskId, { status: 'submitted', feedback: comments })
+        // Notify annotator
+        await Notification.create({
+          userId: review.annotatorId,
+          type: 'escalation',
+          title: 'Task Escalated',
+          message: `Your task "${review.taskTitle}" has been escalated for further review. ${comments || ''}`,
+          actionUrl: `/dashboard/tasks/${review.taskId}`,
+        })
+      } else if (decision === 'hold') {
+        review.status = 'on-hold'
+        await Task.findByIdAndUpdate(review.taskId, { status: 'submitted', feedback: comments })
+      } else if (decision === 'flag') {
+        review.status = 'flagged'
+        await Task.findByIdAndUpdate(review.taskId, { status: 'submitted', feedback: comments })
+        await Notification.create({
+          userId: review.annotatorId,
+          type: 'priority-warning',
+          title: 'Task Flagged for Investigation',
+          message: `Your task "${review.taskTitle}" has been flagged. ${comments || ''}`,
+          actionUrl: `/dashboard/tasks/${review.taskId}`,
+        })
       }
     }
 

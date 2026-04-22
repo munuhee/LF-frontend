@@ -3,13 +3,14 @@
 import { use, useEffect, useState } from 'react'
 import Link from 'next/link'
 import {
-  ArrowLeft, Clock, ExternalLink, Play, Pause, Square, Send,
-  MessageSquare, Flag, AlertCircle, CheckCircle2,
+  ArrowLeft, Clock, ExternalLink, Play, Pause, Send,
+  MessageSquare, Flag, AlertCircle, CheckCircle2, Image, Code2,
 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Separator } from '@/components/ui/separator'
+import { Badge } from '@/components/ui/badge'
 import { TopBar } from '@/components/top-bar'
 import { StatusBadge, TaskTypeBadge } from '@/components/status-badge'
 import { useAuth } from '@/lib/auth-context'
@@ -28,6 +29,7 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
   const [showEscalation, setShowEscalation] = useState(false)
   const [escalationNote, setEscalationNote] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [showRawJson, setShowRawJson] = useState(false)
 
   useEffect(() => {
     api.tasks.get(id)
@@ -43,14 +45,21 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
       const updated = await api.tasks.action(id, action, extras)
       setTask(updated)
       if (action === 'resume') setIsRunning(true)
-      if (action === 'pause' || action === 'stop') setIsRunning(false)
+      if (action === 'pause') setIsRunning(false)
       if (action === 'submit') setIsRunning(false)
       if (task.externalUrl && action === 'claim') {
         window.dispatchEvent(new CustomEvent('labelforge:taskStarted', { detail: { taskId: id, taskType: task.taskType } }))
-        window.open(task.externalUrl, '_blank')
+        window.open(task.externalUrl, '_blank', 'noopener,noreferrer')
       }
-    } catch (e) { /* show toast in production */ }
-    finally { setIsSubmitting(false) }
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : 'Action failed')
+    } finally { setIsSubmitting(false) }
+  }
+
+  const openExternalUrl = () => {
+    if (task?.externalUrl) {
+      window.open(task.externalUrl, '_blank', 'noopener,noreferrer')
+    }
   }
 
   const formatDuration = (m: number) => {
@@ -88,6 +97,9 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
 
   const isAnnotator = user?.role === 'annotator'
   const isMyTask = task.annotatorId === user?.id
+  const isCompleted = ['approved', 'rejected'].includes(task.status)
+  const hasExtensionData = task.extensionData && Object.keys(task.extensionData).length > 0
+  const hasScreenshots = task.screenshots && task.screenshots.length > 0
 
   return (
     <>
@@ -147,29 +159,28 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
               </CardContent>
             </Card>
 
-            {/* External Link */}
-            {task.externalUrl && task.taskType === 'agentic-ai' && (
-              <Card className="border-border bg-card border-primary/50">
-                <CardHeader>
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <ExternalLink className="h-4 w-4" />Task Environment
+            {/* External Link — shown for all task types if URL present */}
+            {task.externalUrl && (
+              <Card className="border-primary/50 bg-card">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <ExternalLink className="h-4 w-4 text-primary" />Task Website
                   </CardTitle>
-                  <CardDescription>
-                    The LabelForge extension will track your activity automatically.
-                  </CardDescription>
+                  <CardDescription className="text-xs font-mono truncate">{task.externalUrl}</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <Button asChild size="lg" className="w-full gap-2">
-                    <Link href={task.externalUrl} target="_blank">
-                      <ExternalLink className="h-4 w-4" />Open External Link
-                    </Link>
+                  <Button className="w-full gap-2" onClick={openExternalUrl}>
+                    <ExternalLink className="h-4 w-4" />Open in New Tab
                   </Button>
+                  <p className="text-[10px] text-muted-foreground mt-2 text-center">
+                    The LabelForge extension will track your activity automatically.
+                  </p>
                 </CardContent>
               </Card>
             )}
 
             {/* Task Controls */}
-            {isAnnotator && isMyTask && !['approved', 'rejected'].includes(task.status) && (
+            {isAnnotator && isMyTask && !isCompleted && (
               <Card className="border-border bg-card">
                 <CardHeader>
                   <CardTitle className="text-lg">Task Controls</CardTitle>
@@ -182,14 +193,9 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
                         {task.status === 'unclaimed' ? 'Start Task' : 'Resume Task'}
                       </Button>
                     ) : (
-                      <>
-                        <Button variant="outline" onClick={() => handleAction('pause')} disabled={isSubmitting} className="gap-2">
-                          <Pause className="h-4 w-4" />Pause
-                        </Button>
-                        <Button variant="destructive" onClick={() => { setIsRunning(false) }} className="gap-2">
-                          <Square className="h-4 w-4" />Stop
-                        </Button>
-                      </>
+                      <Button variant="outline" onClick={() => handleAction('pause')} disabled={isSubmitting} className="gap-2">
+                        <Pause className="h-4 w-4" />Pause
+                      </Button>
                     )}
                   </div>
 
@@ -197,9 +203,8 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
                     <div className="p-4 rounded-lg bg-primary/10 border border-primary/20">
                       <div className="flex items-center gap-2 mb-2">
                         <span className="h-2 w-2 rounded-full bg-primary animate-pulse" />
-                        <span className="text-sm font-medium text-primary">Task Active</span>
+                        <span className="text-sm font-medium text-primary">Task Active — Activity Being Recorded</span>
                       </div>
-                      <p className="text-sm text-muted-foreground">Your activity is being recorded.</p>
                     </div>
                   )}
 
@@ -222,7 +227,7 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
             )}
 
             {/* Annotator Quick Actions */}
-            {isAnnotator && isMyTask && !['approved', 'rejected'].includes(task.status) && (
+            {isAnnotator && isMyTask && !isCompleted && (
               <Card className="border-border bg-card">
                 <CardHeader>
                   <CardTitle className="text-lg">Quick Actions</CardTitle>
@@ -247,7 +252,8 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
                         className="min-h-[80px] bg-secondary/30 text-sm"
                       />
                       <div className="flex gap-2">
-                        <Button size="sm" className="flex-1" disabled={isSubmitting}>
+                        <Button size="sm" className="flex-1" disabled={isSubmitting || !escalationNote.trim()}
+                          onClick={() => handleAction('submit', { notes: `[ESCALATED] ${escalationNote}` }).then(() => setShowEscalation(false))}>
                           <AlertCircle className="h-4 w-4 mr-1" />Escalate to Manager
                         </Button>
                         <Button size="sm" variant="outline" onClick={() => setShowEscalation(false)}>Cancel</Button>
@@ -299,12 +305,74 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
                 </CardContent>
               </Card>
             )}
+
+            {/* Extension Data (JSON recorded by browser extension) */}
+            {hasExtensionData && (
+              <Card className="border-border bg-card">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Code2 className="h-5 w-5 text-primary" />
+                      <CardTitle className="text-lg">Recorded Activity Data</CardTitle>
+                    </div>
+                    <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setShowRawJson(!showRawJson)}>
+                      {showRawJson ? 'Formatted' : 'Raw JSON'}
+                    </Button>
+                  </div>
+                  <CardDescription className="text-xs">Captured by the LabelForge browser extension</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {showRawJson ? (
+                    <pre className="text-xs bg-secondary/50 rounded-lg p-4 overflow-x-auto max-h-[400px] overflow-y-auto font-mono">
+                      {JSON.stringify(task.extensionData, null, 2)}
+                    </pre>
+                  ) : (
+                    <div className="space-y-2">
+                      {Object.entries(task.extensionData as Record<string, unknown>).map(([key, value]) => (
+                        <div key={key} className="flex gap-3 text-sm p-2 rounded-lg bg-secondary/30">
+                          <span className="text-primary font-mono text-xs font-medium w-32 shrink-0 pt-0.5">{key}</span>
+                          <span className="text-muted-foreground text-xs break-all">
+                            {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Screenshots */}
+            {hasScreenshots && (
+              <Card className="border-border bg-card">
+                <CardHeader>
+                  <div className="flex items-center gap-2">
+                    <Image className="h-5 w-5 text-primary" />
+                    <CardTitle className="text-lg">Screenshots</CardTitle>
+                    <Badge variant="outline" className="text-[10px]">{task.screenshots!.length}</Badge>
+                  </div>
+                  <CardDescription className="text-xs">Captured during task execution</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    {task.screenshots!.map((src, i) => (
+                      <a key={i} href={src} target="_blank" rel="noopener noreferrer"
+                        className="block rounded-lg overflow-hidden border border-border hover:border-primary transition-colors">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={src} alt={`Screenshot ${i + 1}`} className="w-full h-32 object-cover" />
+                        <p className="text-[10px] text-muted-foreground px-2 py-1">Screenshot {i + 1}</p>
+                      </a>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </div>
 
           {/* Sidebar */}
           <div className="space-y-6">
-            {isAnnotator && isMyTask && !['approved', 'rejected'].includes(task.status) && (
-              <Card className="border-border bg-card border-primary/50">
+            {isAnnotator && isMyTask && !isCompleted && (
+              <Card className="border-primary/50 bg-card">
                 <CardHeader><CardTitle className="text-base">Actions</CardTitle></CardHeader>
                 <CardContent className="space-y-2">
                   <Button className="w-full gap-2" size="sm" onClick={() => handleAction('submit', { notes })} disabled={isSubmitting}>

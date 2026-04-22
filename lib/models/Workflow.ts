@@ -9,6 +9,7 @@ export interface IWorkflow extends Document {
   description: string
   type: WorkflowType
   isActive: boolean
+  assignedUsers: mongoose.Types.ObjectId[]
   createdBy: mongoose.Types.ObjectId
   createdAt: Date
   updatedAt: Date
@@ -24,6 +25,7 @@ const WorkflowSchema = new Schema<IWorkflow>(
       required: true,
     },
     isActive: { type: Boolean, default: true },
+    assignedUsers: [{ type: Schema.Types.ObjectId, ref: 'User' }],
     createdBy: { type: Schema.Types.ObjectId, ref: 'User' },
   },
   { timestamps: true }

@@ -8,11 +8,21 @@ export async function GET(req: NextRequest) {
     await connectToDatabase()
     const { searchParams } = new URL(req.url)
     const type = searchParams.get('type')
-    const active = searchParams.get('active')
+    const userId = req.headers.get('x-user-id')
+    const role = req.headers.get('x-user-role')
 
     const filter: Record<string, unknown> = {}
     if (type && type !== 'all') filter.type = type
-    if (active === 'true') filter.isActive = true
+
+    // Non-admins only see active workflows
+    if (role !== 'admin') {
+      filter.isActive = true
+    }
+
+    // Annotators only see workflows they are assigned to
+    if (role === 'annotator' && userId) {
+      filter.assignedUsers = userId
+    }
 
     const workflows = await Workflow.find(filter).sort({ createdAt: -1 }).lean()
 
@@ -25,6 +35,7 @@ export async function GET(req: NextRequest) {
           description: w.description,
           type: w.type,
           isActive: w.isActive,
+          assignedUsers: (w.assignedUsers || []).map((id: unknown) => id?.toString()),
           batchCount: batches.length,
           taskCount: batches.reduce((s, b) => s + b.tasksTotal, 0),
           createdAt: w.createdAt,

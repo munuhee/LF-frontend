@@ -21,7 +21,7 @@ import { useAuth } from '@/lib/auth-context'
 import { api } from '@/lib/api'
 import type { Review } from '@/lib/types'
 
-type ReviewStatus = 'pending' | 'in-review' | 'approved' | 'rejected' | 'revision-requested'
+type ReviewStatus = 'pending' | 'in-review' | 'approved' | 'rejected' | 'revision-requested' | 'escalated' | 'on-hold' | 'flagged'
 type ReviewDecision = 'approve' | 'reject' | 'request-rework' | 'escalate' | 'hold' | 'flag'
 
 export default function ReviewsPage() {
@@ -98,6 +98,9 @@ export default function ReviewsPage() {
     if (s === 'rejected') return 'bg-destructive/10 text-destructive border-destructive/20'
     if (s === 'revision-requested') return 'bg-warning/10 text-warning border-warning/20'
     if (s === 'in-review') return 'bg-blue-500/10 text-blue-400 border-blue-500/20'
+    if (s === 'escalated') return 'bg-orange-500/10 text-orange-400 border-orange-500/20'
+    if (s === 'on-hold') return 'bg-purple-500/10 text-purple-400 border-purple-500/20'
+    if (s === 'flagged') return 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20'
     return 'bg-muted text-muted-foreground border-border'
   }
 

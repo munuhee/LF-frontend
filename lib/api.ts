@@ -60,6 +60,10 @@ export const api = {
     update: (id: string, data: Record<string, unknown>) =>
       apiFetch(`/api/workflows/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     delete: (id: string) => apiFetch(`/api/workflows/${id}`, { method: 'DELETE' }),
+    assign: (id: string, userId: string) =>
+      apiFetch(`/api/workflows/${id}`, { method: 'PATCH', body: JSON.stringify({ action: 'assign', userId }) }),
+    unassign: (id: string, userId: string) =>
+      apiFetch(`/api/workflows/${id}`, { method: 'PATCH', body: JSON.stringify({ action: 'unassign', userId }) }),
   },
 
   batches: {

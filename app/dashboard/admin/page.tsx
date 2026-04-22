@@ -42,6 +42,9 @@ export default function AdminPage() {
   const [badgeUser, setBadgeUser] = useState<User | null>(null)
   const [newBadge, setNewBadge] = useState({ type: 'expertise', name: '', description: '' })
 
+  // Assign users to workflow
+  const [assignWorkflow, setAssignWorkflow] = useState<WorkflowType | null>(null)
+
   useEffect(() => {
     if (user && user.role !== 'admin') { router.push('/dashboard'); return }
     Promise.all([api.users.list(), api.workflows.list()])
@@ -94,6 +97,20 @@ export default function AdminPage() {
       const updated = await api.users.removeBadge(userId, badge)
       setUsers(prev => prev.map(u => u.id === userId ? { ...u, badges: updated.badges } : u))
     } catch { /* noop */ }
+  }
+
+  const handleAssignUser = async (workflowId: string, userId: string) => {
+    try {
+      const updated = await api.workflows.assign(workflowId, userId)
+      setWorkflows(prev => prev.map(w => w.id === workflowId ? { ...w, assignedUsers: updated.assignedUsers } : w))
+    } catch (e: unknown) { alert(e instanceof Error ? e.message : 'Failed') }
+  }
+
+  const handleUnassignUser = async (workflowId: string, userId: string) => {
+    try {
+      const updated = await api.workflows.unassign(workflowId, userId)
+      setWorkflows(prev => prev.map(w => w.id === workflowId ? { ...w, assignedUsers: updated.assignedUsers } : w))
+    } catch (e: unknown) { alert(e instanceof Error ? e.message : 'Failed') }
   }
 
   if (!user || user.role !== 'admin') return null
@@ -181,27 +198,53 @@ export default function AdminPage() {
               </Button>
             </div>
             <div className="space-y-3">
-              {workflows.map(w => (
-                <Card key={w.id} className="border-border bg-card">
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="font-medium text-sm">{w.name}</span>
-                          <Badge variant="outline" className="text-[10px]">{w.type}</Badge>
-                          {!w.isActive && <Badge variant="outline" className="text-[10px] bg-muted">Inactive</Badge>}
+              {workflows.map(w => {
+                const assigned = (w.assignedUsers || []) as string[]
+                const assignedUserObjs = users.filter(u => assigned.includes(u.id))
+                const annotators = users.filter(u => u.role === 'annotator')
+                return (
+                  <Card key={w.id} className="border-border bg-card">
+                    <CardContent className="p-4 space-y-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1 flex-wrap">
+                            <span className="font-medium text-sm">{w.name}</span>
+                            <Badge variant="outline" className="text-[10px]">{w.type}</Badge>
+                            {!w.isActive && <Badge variant="outline" className="text-[10px] bg-muted text-muted-foreground">Inactive</Badge>}
+                          </div>
+                          <p className="text-xs text-muted-foreground">{w.description}</p>
                         </div>
-                        <p className="text-xs text-muted-foreground">{w.description}</p>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setAssignWorkflow(w)}>
+                            <Users className="h-3.5 w-3.5 mr-1" />Assign
+                          </Button>
+                          <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() =>
+                            api.workflows.update(w.id, { isActive: !w.isActive })
+                              .then(updated => setWorkflows(prev => prev.map(wf => wf.id === w.id ? { ...wf, isActive: updated.isActive } : wf)))
+                          }>
+                            {w.isActive ? 'Deactivate' : 'Activate'}
+                          </Button>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-1.5">
-                        <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => api.workflows.update(w.id, { isActive: !w.isActive }).then(updated => setWorkflows(prev => prev.map(wf => wf.id === w.id ? { ...wf, isActive: updated.isActive } : wf)))}>
-                          {w.isActive ? 'Deactivate' : 'Activate'}
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                      {assignedUserObjs.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5">
+                          {assignedUserObjs.map(u => (
+                            <div key={u.id} className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 border border-primary/20">
+                              <span className="text-[10px] text-primary">{u.name}</span>
+                              <button onClick={() => handleUnassignUser(w.id, u.id)} className="text-primary/60 hover:text-destructive">
+                                <X className="h-2.5 w-2.5" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {assignedUserObjs.length === 0 && (
+                        <p className="text-[10px] text-muted-foreground italic">No annotators assigned — not visible to annotators</p>
+                      )}
+                    </CardContent>
+                  </Card>
+                )
+              })}
             </div>
           </TabsContent>
 
@@ -302,6 +345,45 @@ export default function AdminPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowCreateWorkflow(false)}>Cancel</Button>
             <Button onClick={handleCreateWorkflow} disabled={isCreatingWF}>{isCreatingWF ? 'Creating...' : 'Create Workflow'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Assign Users Dialog */}
+      <Dialog open={!!assignWorkflow} onOpenChange={open => { if (!open) setAssignWorkflow(null) }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Assign Annotators</DialogTitle>
+            <DialogDescription>Control who can see and work on "{assignWorkflow?.name}"</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 max-h-[400px] overflow-y-auto">
+            {users.filter(u => u.role === 'annotator').map(u => {
+              const isAssigned = ((assignWorkflow?.assignedUsers || []) as string[]).includes(u.id)
+              return (
+                <div key={u.id} className="flex items-center justify-between p-3 rounded-lg border border-border">
+                  <div>
+                    <p className="text-sm font-medium">{u.name}</p>
+                    <p className="text-xs text-muted-foreground">{u.email}</p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant={isAssigned ? 'destructive' : 'outline'}
+                    className="h-7 text-xs"
+                    onClick={() => assignWorkflow && (isAssigned
+                      ? handleUnassignUser(assignWorkflow.id, u.id)
+                      : handleAssignUser(assignWorkflow.id, u.id))}
+                  >
+                    {isAssigned ? <><X className="h-3.5 w-3.5 mr-1" />Remove</> : <><Check className="h-3.5 w-3.5 mr-1" />Assign</>}
+                  </Button>
+                </div>
+              )
+            })}
+            {users.filter(u => u.role === 'annotator').length === 0 && (
+              <p className="text-sm text-muted-foreground text-center py-4">No annotators in the system yet</p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAssignWorkflow(null)}>Done</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
