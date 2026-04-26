@@ -89,6 +89,18 @@ export const api = {
       apiFetch('/api/tasks', { method: 'POST', body: JSON.stringify(data) }),
     action: (id: string, action: string, extras?: Record<string, unknown>) =>
       apiFetch(`/api/tasks/${id}`, { method: 'PATCH', body: JSON.stringify({ action, ...extras }) }),
+    signOff: (id: string, qualityScore: number, comments?: string) =>
+      apiFetch(`/api/tasks/${id}`, { method: 'PATCH', body: JSON.stringify({ action: 'sign-off', qualityScore, comments }) }),
+    requestRework: (id: string, comment: string) =>
+      apiFetch(`/api/tasks/${id}`, { method: 'PATCH', body: JSON.stringify({ action: 'request-rework', comment }) }),
+    addErrorTag: (id: string, tag: { tagId: string; severity: string; category: string; message: string; stepReference?: string; scoreDeduction: number; status: string; createdBy: string; createdByEmail: string }) =>
+      apiFetch(`/api/tasks/${id}`, { method: 'PATCH', body: JSON.stringify({ action: 'add-error-tag', tag }) }),
+    removeErrorTag: (id: string, tagId: string) =>
+      apiFetch(`/api/tasks/${id}`, { method: 'PATCH', body: JSON.stringify({ action: 'remove-error-tag', tagId }) }),
+    resolveErrorTag: (id: string, tagId: string) =>
+      apiFetch(`/api/tasks/${id}`, { method: 'PATCH', body: JSON.stringify({ action: 'resolve-error-tag', tagId }) }),
+    bulkImport: (batchId: string, tasks: Record<string, unknown>[], metadata?: Record<string, unknown>) =>
+      apiFetch('/api/tasks/bulk', { method: 'POST', body: JSON.stringify({ batchId, tasks, metadata }) }),
     delete: (id: string) => apiFetch(`/api/tasks/${id}`, { method: 'DELETE' }),
   },
 
@@ -111,7 +123,10 @@ export const api = {
   },
 
   analytics: {
-    get: () => apiFetch('/api/analytics'),
+    get: (params?: Record<string, string>) => {
+      const q = params && Object.keys(params).length ? '?' + new URLSearchParams(params).toString() : ''
+      return apiFetch(`/api/analytics${q}`)
+    },
   },
 
   users: {

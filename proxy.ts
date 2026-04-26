@@ -4,7 +4,7 @@ import { verifyToken } from '@/lib/jwt'
 
 const PUBLIC_PATHS = ['/', '/verify-otp', '/api/auth/login', '/api/auth/verify-otp', '/api/seed']
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   const isPublic = PUBLIC_PATHS.some(p => pathname === p || pathname.startsWith('/api/auth/'))

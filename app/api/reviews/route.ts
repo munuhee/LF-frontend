@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
     // Admins see all
 
     const reviews = await Review.find(filter).sort({ submittedAt: -1 }).lean()
-    return NextResponse.json(reviews.map(r => serializeReview(r as Record<string, unknown>)))
+    return NextResponse.json(reviews.map(r => serializeReview(r as unknown as Record<string, unknown>)))
   } catch (err) {
     console.error('[reviews GET]', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

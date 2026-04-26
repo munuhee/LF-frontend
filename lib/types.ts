@@ -9,8 +9,60 @@ export type TaskType = WorkflowType
 export type BatchStatus = 'available' | 'in-progress' | 'completed' | 'pending-review'
 
 export type TaskStatus =
-  | 'unclaimed' | 'in-progress' | 'paused' | 'submitted'
-  | 'approved' | 'rejected' | 'revision-requested'
+  | 'unclaimed' | 'in-progress' | 'paused' | 'submitted' | 'in-review'
+  | 'approved' | 'rejected' | 'revision-requested' | 'escalated' | 'data-ready'
+
+export type ErrorSeverity = 'major' | 'minor'
+
+export const MAJOR_ERROR_CATEGORIES = [
+  { value: 'task-not-completed',    label: 'Task Not Completed Correctly' },
+  { value: 'logical-inconsistency', label: 'Logical Inconsistency in Steps' },
+  { value: 'missing-critical-step', label: 'Missing Critical Steps' },
+  { value: 'fabricated-results',    label: 'Fabricated or Unsupported Results' },
+  { value: 'wrong-navigation',      label: 'Completely Wrong Navigation Path' },
+  { value: 'invalid-data-capture',  label: 'Missing or Invalid Data Capture' },
+  { value: 'instruction-violation', label: 'Failure to Follow Instructions' },
+] as const
+
+export const MINOR_ERROR_CATEGORIES = [
+  { value: 'inefficient-workflow',    label: 'Inefficient Workflow' },
+  { value: 'poor-clarity',           label: 'Poor Clarity in Reasoning' },
+  { value: 'missing-minor-context',  label: 'Missing Minor Context' },
+  { value: 'timing-irregularity',    label: 'Timing Irregularity' },
+  { value: 'mislabeling',            label: 'Mislabeling of Actions' },
+  { value: 'low-quality-screenshot', label: 'Low-Quality Screenshots' },
+] as const
+
+export type MajorErrorCategory = typeof MAJOR_ERROR_CATEGORIES[number]['value']
+export type MinorErrorCategory = typeof MINOR_ERROR_CATEGORIES[number]['value']
+export type ErrorCategory = MajorErrorCategory | MinorErrorCategory
+
+export const ERROR_CATEGORIES: Record<ErrorSeverity, readonly { value: string; label: string }[]> = {
+  major: MAJOR_ERROR_CATEGORIES,
+  minor: MINOR_ERROR_CATEGORIES,
+}
+
+export interface ErrorTag {
+  tagId: string
+  severity: ErrorSeverity
+  category: ErrorCategory
+  message: string
+  stepReference?: string
+  scoreDeduction: number
+  status: 'open' | 'resolved'
+  createdBy: string
+  createdByEmail: string
+  resolvedBy?: string
+  resolvedAt?: string
+}
+
+export interface ActivityEntry {
+  action: string
+  userId: string
+  userEmail: string
+  comment?: string
+  timestamp: string
+}
 
 export type BadgeType = 'role' | 'expertise' | 'level'
 
@@ -61,6 +113,13 @@ export interface Batch {
   createdAt: string
 }
 
+export interface TaskSubtask {
+  id: string
+  title: string
+  description?: string
+  completed?: boolean
+}
+
 export interface Task {
   id: string
   batchId: string
@@ -71,7 +130,11 @@ export interface Task {
   description: string
   taskType: TaskType
   status: TaskStatus
+  isLocked?: boolean
   priority: number
+  difficulty?: 'easy' | 'medium' | 'hard'
+  languageTags?: string[]
+  sla?: string
   externalUrl?: string
   estimatedDuration: number
   actualDuration?: number
@@ -82,12 +145,19 @@ export interface Task {
   feedback?: string
   qualityScore?: number
   notes?: string
+  objective?: string
+  successCriteria?: string[]
+  expectedOutput?: Record<string, unknown>
+  subtasks?: TaskSubtask[]
   submissionData?: Record<string, unknown>
   extensionData?: Record<string, unknown>
   screenshots?: string[]
+  errorTags?: ErrorTag[]
+  activityLog?: ActivityEntry[]
   startedAt?: string
   completedAt?: string
   submittedAt?: string
+  signedOffAt?: string
   createdAt?: string
   review?: TaskReview | null
 }
@@ -116,7 +186,7 @@ export interface Review {
   reviewerId?: string
   reviewerEmail?: string
   reviewerName?: string
-  status: 'pending' | 'in-review' | 'approved' | 'rejected' | 'revision-requested' | 'escalated' | 'on-hold' | 'flagged'
+  status: 'pending' | 'in-review' | 'approved' | 'rejected' | 'revision-requested' | 'escalated' | 'on-hold' | 'flagged' | 'data-ready'
   decision?: 'approve' | 'reject' | 'request-rework' | 'escalate' | 'hold' | 'flag'
   comments?: string
   reasonCode?: string
@@ -124,6 +194,7 @@ export interface Review {
   criteriaScores?: { accuracy: number; completeness: number; adherence: number }
   submittedAt: string
   reviewedAt?: string
+  errorTags?: ErrorTag[]
 }
 
 export interface Notification {

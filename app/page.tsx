@@ -11,6 +11,16 @@ import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { InputGroup, InputGroupInput, InputGroupAddon } from '@/components/ui/input-group'
 import { api } from '@/lib/api'
 
+const TEST_ACCOUNTS = [
+  { label: 'Annotator — Wanjiru Kamau',   email: 'wanjiru.kamau@labelforge.ai',   password: 'annotator123!' },
+  { label: 'Annotator — Odhiambo Otieno', email: 'odhiambo.otieno@labelforge.ai', password: 'annotator123!' },
+  { label: 'Annotator — Njeri Mwangi',    email: 'njeri.mwangi@labelforge.ai',    password: 'annotator123!' },
+  { label: 'Annotator — Kipchoge Ruto',   email: 'kipchoge.ruto@labelforge.ai',   password: 'annotator123!' },
+  { label: 'Reviewer — Amina Hassan',     email: 'amina.hassan@labelforge.ai',    password: 'reviewer123!'  },
+  { label: 'Reviewer — Mutua Kibet',      email: 'mutua.kibet@labelforge.ai',     password: 'reviewer123!'  },
+  { label: 'Admin — Zawadi Ndungu',       email: 'zawadi.ndungu@labelforge.ai',   password: 'admin123!'     },
+]
+
 export default function LoginPage() {
   const router = useRouter()
   const [showPassword, setShowPassword] = useState(false)
@@ -120,14 +130,22 @@ export default function LoginPage() {
                 <span className="bg-card px-2 text-muted-foreground">Secure login with 2FA</span>
               </div>
             </div>
-            <div className="w-full p-3 rounded-lg bg-secondary/50 border border-border">
-              <p className="text-xs font-medium text-foreground mb-2">Test Credentials:</p>
-              <div className="space-y-1 text-xs text-muted-foreground">
-                <p>Annotator: alex.chen@labelforge.ai / annotator123!</p>
-                <p>Reviewer: sarah.johnson@labelforge.ai / reviewer123!</p>
-                <p>Admin: michael.park@labelforge.ai / admin123!</p>
-              </div>
-              <p className="text-xs text-muted-foreground mt-2 italic">
+            <div className="w-full p-3 rounded-lg bg-secondary/50 border border-border space-y-2">
+              <p className="text-xs font-medium text-foreground">Quick Sign-in (Test Accounts)</p>
+              <select
+                defaultValue=""
+                className="w-full text-xs bg-background border border-border rounded-md px-2 py-1.5 text-foreground focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer"
+                onChange={e => {
+                  const account = TEST_ACCOUNTS.find(a => a.email === e.target.value)
+                  if (account) { setEmail(account.email); setPassword(account.password) }
+                }}
+              >
+                <option value="" disabled>Select a test account...</option>
+                {TEST_ACCOUNTS.map(a => (
+                  <option key={a.email} value={a.email}>{a.label}</option>
+                ))}
+              </select>
+              <p className="text-[10px] text-muted-foreground italic">
                 Run <code className="font-mono bg-secondary px-1 rounded">POST /api/seed</code> first to populate the database.
               </p>
             </div>

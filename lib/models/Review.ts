@@ -3,6 +3,20 @@ import mongoose, { Schema, Document, Model } from 'mongoose'
 export type ReviewStatus = 'pending' | 'in-review' | 'approved' | 'rejected' | 'revision-requested' | 'escalated' | 'on-hold' | 'flagged'
 export type ReviewDecision = 'approve' | 'reject' | 'request-rework' | 'escalate' | 'hold' | 'flag'
 
+interface IErrorTag {
+  tagId: string
+  severity: 'major' | 'minor'
+  category: string
+  message: string
+  stepReference?: string
+  scoreDeduction: number
+  status: 'open' | 'resolved'
+  createdBy: string
+  createdByEmail: string
+  resolvedBy?: string
+  resolvedAt?: Date
+}
+
 export interface IReview extends Document {
   taskId: mongoose.Types.ObjectId
   taskTitle: string
@@ -25,6 +39,7 @@ export interface IReview extends Document {
     completeness: number
     adherence: number
   }
+  errorTags?: IErrorTag[]
   submittedAt: Date
   reviewedAt?: Date
   createdAt: Date
@@ -58,6 +73,19 @@ const ReviewSchema = new Schema<IReview>(
       completeness: { type: Number },
       adherence: { type: Number },
     },
+    errorTags: [{
+      tagId: { type: String, required: true },
+      severity: { type: String, enum: ['major', 'minor'], required: true },
+      category: { type: String, required: true },
+      message: { type: String, required: true },
+      stepReference: { type: String },
+      scoreDeduction: { type: Number, default: 0 },
+      status: { type: String, enum: ['open', 'resolved'], default: 'open' },
+      createdBy: { type: String, required: true },
+      createdByEmail: { type: String, required: true },
+      resolvedBy: { type: String },
+      resolvedAt: { type: Date },
+    }],
     submittedAt: { type: Date, required: true },
     reviewedAt: { type: Date },
   },

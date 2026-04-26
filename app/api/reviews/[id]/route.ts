@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { connectToDatabase } from '@/lib/mongodb'
 import Review from '@/lib/models/Review'
 import Task from '@/lib/models/Task'
-import Batch from '@/lib/models/Batch'
 import Notification from '@/lib/models/Notification'
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -12,7 +11,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     const review = await Review.findById(id).lean()
     if (!review) return NextResponse.json({ error: 'Not found' }, { status: 404 })
     return NextResponse.json({ id: review._id.toString(), ...review })
-  } catch (err) {
+  } catch {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -33,46 +32,71 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const review = await Review.findById(id)
     if (!review) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-    const { action, decision, comments, reasonCode, qualityScore, criteriaScores } = body
+    const { action } = body
 
     if (action === 'claim') {
-      // Check reviewer task limit (max 2 active)
-      const activeCount = await Review.countDocuments({ reviewerId: userId, status: 'in-review' })
-      if (activeCount >= 2) {
-        return NextResponse.json({ error: 'You have reached the maximum of 2 active reviews' }, { status: 400 })
+      // Enforce one-at-a-time for reviewers
+      const active = await Review.countDocuments({ reviewerId: userId, status: 'in-review' })
+      if (active >= 1) {
+        return NextResponse.json({ error: 'Complete your current active review before claiming another' }, { status: 400 })
       }
       review.reviewerId = userId as unknown as typeof review.reviewerId
       review.reviewerEmail = userEmail
       review.reviewerName = userEmail.split('@')[0]
       review.status = 'in-review'
+      // Set task reviewerId
+      await Task.findByIdAndUpdate(review.taskId, {
+        reviewerId: userId,
+        reviewerEmail: userEmail,
+        status: 'in-review',
+      })
+
     } else if (action === 'decide') {
+      const { decision, comments, reasonCode, qualityScore, criteriaScores, errorTags } = body
       review.decision = decision
       review.comments = comments
       review.reasonCode = reasonCode
       review.qualityScore = qualityScore
       review.criteriaScores = criteriaScores
       review.reviewedAt = new Date()
+      if (errorTags?.length) review.errorTags = errorTags
 
       if (decision === 'approve') {
+        // Delegate to task sign-off logic (sets data-ready + locks)
+        const task = await Task.findById(review.taskId)
+        if (task) {
+          task.status = 'data-ready'
+          task.isLocked = true
+          task.qualityScore = qualityScore
+          task.feedback = comments
+          task.completedAt = new Date()
+          task.signedOffAt = new Date()
+          task.errorTags.forEach(tag => {
+            if (tag.status === 'open') { tag.status = 'resolved'; tag.resolvedBy = userEmail; tag.resolvedAt = new Date() }
+          })
+          task.activityLog.push({ action: 'signed-off', userId, userEmail, comment: comments, timestamp: new Date() })
+          await task.save()
+          await require('@/lib/models/Batch').default.findByIdAndUpdate(task.batchId, { $inc: { tasksCompleted: 1 } })
+        }
         review.status = 'approved'
-        await Task.findByIdAndUpdate(review.taskId, {
-          status: 'approved',
-          qualityScore,
-          feedback: comments,
-          completedAt: new Date(),
-        })
-        await Batch.findByIdAndUpdate(review.batchId, { $inc: { tasksCompleted: 1 } })
-        // Notify annotator
         await Notification.create({
           userId: review.annotatorId,
           type: 'task-approved',
-          title: 'Task Approved',
-          message: `Your task "${review.taskTitle}" has been approved${qualityScore ? ` with a score of ${qualityScore}%` : ''}.`,
+          title: 'Task Signed Off — Data Ready',
+          message: `Your task "${review.taskTitle}" is now in the training dataset.`,
           actionUrl: `/dashboard/tasks/${review.taskId}`,
         })
+
       } else if (decision === 'reject') {
         review.status = 'rejected'
-        await Task.findByIdAndUpdate(review.taskId, { status: 'rejected', feedback: comments })
+        const task = await Task.findById(review.taskId)
+        if (task) {
+          task.status = 'rejected'
+          task.feedback = comments
+          if (errorTags?.length) task.errorTags.push(...errorTags)
+          task.activityLog.push({ action: 'rejected', userId, userEmail, comment: comments, timestamp: new Date() })
+          await task.save()
+        }
         await Notification.create({
           userId: review.annotatorId,
           type: 'task-rejected',
@@ -80,37 +104,47 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
           message: `Your task "${review.taskTitle}" was rejected. ${comments || ''}`,
           actionUrl: `/dashboard/tasks/${review.taskId}`,
         })
+
       } else if (decision === 'request-rework') {
         review.status = 'revision-requested'
-        await Task.findByIdAndUpdate(review.taskId, { status: 'revision-requested', feedback: comments })
+        const task = await Task.findById(review.taskId)
+        if (task) {
+          task.status = 'revision-requested'
+          task.feedback = comments
+          if (errorTags?.length) task.errorTags.push(...errorTags)
+          task.activityLog.push({ action: 'revision-requested', userId, userEmail, comment: comments, timestamp: new Date() })
+          await task.save()
+        }
         await Notification.create({
           userId: review.annotatorId,
           type: 'task-rejected',
-          title: 'Revision Requested',
-          message: `Your task "${review.taskTitle}" needs revision. ${comments || ''}`,
+          title: 'Rework Required',
+          message: `Your task "${review.taskTitle}" needs rework. ${comments || ''}`,
           actionUrl: `/dashboard/tasks/${review.taskId}`,
         })
+
       } else if (decision === 'escalate') {
         review.status = 'escalated'
         await Task.findByIdAndUpdate(review.taskId, { status: 'submitted', feedback: comments })
-        // Notify annotator
         await Notification.create({
           userId: review.annotatorId,
           type: 'escalation',
           title: 'Task Escalated',
-          message: `Your task "${review.taskTitle}" has been escalated for further review. ${comments || ''}`,
+          message: `Your task "${review.taskTitle}" has been escalated. ${comments || ''}`,
           actionUrl: `/dashboard/tasks/${review.taskId}`,
         })
+
       } else if (decision === 'hold') {
         review.status = 'on-hold'
         await Task.findByIdAndUpdate(review.taskId, { status: 'submitted', feedback: comments })
+
       } else if (decision === 'flag') {
         review.status = 'flagged'
         await Task.findByIdAndUpdate(review.taskId, { status: 'submitted', feedback: comments })
         await Notification.create({
           userId: review.annotatorId,
           type: 'priority-warning',
-          title: 'Task Flagged for Investigation',
+          title: 'Task Flagged',
           message: `Your task "${review.taskTitle}" has been flagged. ${comments || ''}`,
           actionUrl: `/dashboard/tasks/${review.taskId}`,
         })
