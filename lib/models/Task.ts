@@ -36,6 +36,8 @@ export interface ISubtask {
 }
 
 export interface ITask extends Document {
+  tenantId: mongoose.Types.ObjectId
+  projectId?: mongoose.Types.ObjectId
   batchId: mongoose.Types.ObjectId
   batchTitle: string
   workflowId: mongoose.Types.ObjectId
@@ -116,6 +118,8 @@ const SubtaskSchema = new Schema<ISubtask>(
 
 const TaskSchema = new Schema<ITask>(
   {
+    tenantId: { type: Schema.Types.ObjectId, ref: 'Client', required: true },
+    projectId: { type: Schema.Types.ObjectId, ref: 'Project' },
     batchId: { type: Schema.Types.ObjectId, ref: 'Batch', required: true },
     batchTitle: { type: String, required: true },
     workflowId: { type: Schema.Types.ObjectId, ref: 'Workflow', required: true },
@@ -159,6 +163,11 @@ const TaskSchema = new Schema<ITask>(
   },
   { timestamps: true }
 )
+
+TaskSchema.index({ tenantId: 1 })
+TaskSchema.index({ tenantId: 1, projectId: 1 })
+TaskSchema.index({ tenantId: 1, status: 1 })
+TaskSchema.index({ tenantId: 1, annotatorId: 1 })
 
 const Task: Model<ITask> = mongoose.models.Task || mongoose.model<ITask>('Task', TaskSchema)
 export default Task

@@ -10,15 +10,18 @@ import { api } from '@/lib/api'
 import type { User } from '@/lib/types'
 
 const roleColors: Record<string, string> = {
-  admin: 'bg-destructive/10 text-destructive border-destructive/20',
-  reviewer: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
-  annotator: 'bg-primary/10 text-primary border-primary/20',
+  super_admin:       'bg-destructive/10 text-destructive border-destructive/20',
+  client_admin:      'bg-warning/10 text-warning border-warning/20',
+  qa_lead:           'bg-success/10 text-success border-success/20',
+  reviewer:          'bg-primary/10 text-primary border-primary/20',
+  reviewer_annotator:'bg-primary/20 text-primary border-primary/30',
+  annotator:         'bg-muted text-foreground border-border',
 }
 
 const badgeTypeColors: Record<string, string> = {
-  role: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
-  expertise: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
-  level: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+  role:      'bg-primary/10 text-primary border-primary/20',
+  expertise: 'bg-success/10 text-success border-success/20',
+  level:     'bg-warning/10 text-warning border-warning/20',
 }
 
 export default function TeamPage() {
@@ -35,8 +38,8 @@ export default function TeamPage() {
   }, [])
 
   const annotators = users.filter(u => u.role === 'annotator')
-  const reviewers = users.filter(u => u.role === 'reviewer')
-  const admins = users.filter(u => u.role === 'admin')
+  const reviewers = users.filter(u => u.role === 'reviewer' || u.role === 'qa_lead')
+  const admins = users.filter(u => u.role === 'client_admin' || u.role === 'super_admin')
 
   const annotatorPerf = (analytics?.annotatorPerformance as Record<string, unknown>[]) || []
   const reviewerAct = (analytics?.reviewerActivity as Record<string, unknown>[]) || []
@@ -105,8 +108,8 @@ export default function TeamPage() {
         <div className="grid grid-cols-3 gap-3 mb-6">
           {[
             { label: 'Annotators', count: annotators.length, icon: UserCheck, color: 'text-primary', bg: 'bg-primary/10' },
-            { label: 'Reviewers', count: reviewers.length, icon: Shield, color: 'text-blue-400', bg: 'bg-blue-500/10' },
-            { label: 'Admins', count: admins.length, icon: Star, color: 'text-amber-400', bg: 'bg-amber-500/10' },
+            { label: 'Reviewers', count: reviewers.length, icon: Shield, color: 'text-success',  bg: 'bg-success/10'  },
+            { label: 'Admins',    count: admins.length,    icon: Star,   color: 'text-warning',  bg: 'bg-warning/10'  },
           ].map(s => (
             <Card key={s.label} className="border-border bg-card">
               <CardContent className="p-3">

@@ -2,14 +2,34 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { verifyToken } from '@/lib/jwt'
 
-const PUBLIC_PATHS = ['/', '/verify-otp', '/api/auth/login', '/api/auth/verify-otp', '/api/seed']
+const PUBLIC_PATHS = [
+  '/',
+  '/login',         // Super Admin login
+  '/verify-otp',
+  '/api/auth/login',
+  '/api/auth/verify-otp',
+  '/api/seed',
+]
+
+// /[clientSlug]/login is publicly accessible
+const CLIENT_LOGIN_RE = /^\/[a-z0-9-]+\/login$/
+
+// Matches /[clientSlug]/dashboard/... — rewritten to /dashboard/...
+const CLIENT_DASHBOARD_RE = /^\/([a-z0-9-]+)(\/dashboard(?:\/.*)?)?$/
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  const isPublic = PUBLIC_PATHS.some(p => pathname === p || pathname.startsWith('/api/auth/'))
+  // Allow public paths and auth sub-routes
+  const isPublic =
+    PUBLIC_PATHS.some(p => pathname === p || pathname.startsWith('/api/auth/')) ||
+    CLIENT_LOGIN_RE.test(pathname) ||
+    pathname.startsWith('/_next/') ||
+    pathname.startsWith('/public/')
+
   if (isPublic) return NextResponse.next()
 
+  // ── Token validation ─────────────────────────────────────────────────────
   const token = request.cookies.get('lf_token')?.value
 
   if (!token) {
@@ -29,10 +49,42 @@ export async function proxy(request: NextRequest) {
     return response
   }
 
+  const isSuperAdmin = payload.role === 'super_admin'
+
+  // ── Client-slug dashboard rewriting ─────────────────────────────────────
+  // Only rewrite /[clientSlug]/dashboard/... → /dashboard/...
+  // Other slug paths (like /[clientSlug]/login) are served by their own page files.
+  const dashMatch = CLIENT_DASHBOARD_RE.exec(pathname)
+  const urlSlug = dashMatch?.[1]
+  const dashboardPart = dashMatch?.[2]
+
+  if (urlSlug && dashboardPart && !pathname.startsWith('/api/')) {
+    // Non-super_admin must have a matching token clientSlug
+    if (!isSuperAdmin && payload.clientSlug && payload.clientSlug !== urlSlug) {
+      return NextResponse.redirect(
+        new URL(`/${payload.clientSlug}/dashboard`, request.url)
+      )
+    }
+
+    const requestHeaders = new Headers(request.headers)
+    requestHeaders.set('x-user-id', payload.userId)
+    requestHeaders.set('x-user-email', payload.email)
+    requestHeaders.set('x-user-role', payload.role)
+    if (payload.tenantId) requestHeaders.set('x-tenant-id', payload.tenantId)
+    requestHeaders.set('x-client-slug', payload.clientSlug ?? urlSlug)
+
+    // Rewrite /[slug]/dashboard/... → /dashboard/...
+    const rewrittenUrl = new URL(dashboardPart, request.url)
+    return NextResponse.rewrite(rewrittenUrl, { request: { headers: requestHeaders } })
+  }
+
+  // ── All other authenticated paths (API routes, /dashboard/..., etc.) ────
   const requestHeaders = new Headers(request.headers)
   requestHeaders.set('x-user-id', payload.userId)
   requestHeaders.set('x-user-email', payload.email)
   requestHeaders.set('x-user-role', payload.role)
+  if (payload.tenantId) requestHeaders.set('x-tenant-id', payload.tenantId)
+  if (payload.clientSlug) requestHeaders.set('x-client-slug', payload.clientSlug)
 
   return NextResponse.next({ request: { headers: requestHeaders } })
 }

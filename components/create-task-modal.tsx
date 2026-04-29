@@ -22,6 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import type { Task, TaskStatus } from "@/lib/types"
+import { useAuth } from "@/lib/auth-context"
 
 interface CreateTaskModalProps {
   batchId: string
@@ -38,6 +39,7 @@ export function CreateTaskModal({
   workflowName,
   onTaskCreated,
 }: CreateTaskModalProps) {
+  const { user } = useAuth()
   const [open, setOpen] = useState(false)
   const [title, setTitle] = useState("")
   const [description, setDescription] = useState("")
@@ -55,15 +57,16 @@ export function CreateTaskModal({
 
     const newTask: Task = {
       id: taskId,
+      tenantId: user?.tenantId ?? '',
       batchId,
       batchTitle,
       workflowId,
       workflowName,
       title,
       description: instructions || description,
-      taskType: "agentic-ai", // Fixed for Agentic AI workflow
+      taskType: "agentic-ai",
       status,
-      priority: 0.9, // P1 priority by default
+      priority: 0.9,
       externalUrl: externalUrl || undefined,
       estimatedDuration: parseInt(duration) || 15,
       feedback: notes || undefined,

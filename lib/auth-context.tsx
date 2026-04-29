@@ -2,12 +2,17 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
 import { api } from './api'
+import type { UserRole } from './types'
 
 export interface AuthUser {
   id: string
   name: string
   email: string
-  role: 'annotator' | 'reviewer' | 'admin'
+  role: UserRole
+  /** MongoDB ObjectId of the active client workspace */
+  tenantId?: string
+  /** URL slug of the active client workspace, e.g. "acme-corp" */
+  clientSlug?: string
   department?: string
   badges?: Array<{ type: string; name: string; description: string; awardedAt: string }>
 }
@@ -42,23 +47,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    // Immediately hydrate from cache so the UI renders with user data before the API responds
     const cached = readCache()
     if (cached) {
       setUserState(cached)
       setIsLoading(false)
     }
 
-    // Verify with the server in the background
     api.auth.me()
       .then(u => {
         setUserState(u)
         writeCache(u)
       })
       .catch(() => {
-        // Only clear if we had no cache — if we have a cached user and the network
-        // call fails (e.g. offline), don't nuke the UI; the cookie check in middleware
-        // already protects routes server-side
         if (!cached) {
           setUserState(null)
           writeCache(null)

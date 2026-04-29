@@ -5,6 +5,8 @@ export type WorkflowType =
   | 'benchmarking' | 'preference-ranking' | 'red-teaming' | 'data-collection'
 
 export interface IWorkflow extends Document {
+  tenantId: mongoose.Types.ObjectId
+  projectId?: mongoose.Types.ObjectId
   name: string
   description: string
   type: WorkflowType
@@ -17,6 +19,8 @@ export interface IWorkflow extends Document {
 
 const WorkflowSchema = new Schema<IWorkflow>(
   {
+    tenantId: { type: Schema.Types.ObjectId, ref: 'Client', required: true },
+    projectId: { type: Schema.Types.ObjectId, ref: 'Project' },
     name: { type: String, required: true, trim: true },
     description: { type: String, default: '' },
     type: {
@@ -30,6 +34,10 @@ const WorkflowSchema = new Schema<IWorkflow>(
   },
   { timestamps: true }
 )
+
+WorkflowSchema.index({ tenantId: 1 })
+WorkflowSchema.index({ tenantId: 1, projectId: 1 })
+WorkflowSchema.index({ tenantId: 1, isActive: 1 })
 
 const Workflow: Model<IWorkflow> = mongoose.models.Workflow || mongoose.model<IWorkflow>('Workflow', WorkflowSchema)
 export default Workflow

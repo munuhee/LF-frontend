@@ -28,6 +28,7 @@ import { StatusBadge, TaskTypeBadge } from '@/components/status-badge'
 import { useAuth } from '@/lib/auth-context'
 import { api } from '@/lib/api'
 import type { Task, ErrorTag, ErrorSeverity } from '@/lib/types'
+import { isReviewerOrAbove } from '@/lib/types'
 import { MAJOR_ERROR_CATEGORIES, MINOR_ERROR_CATEGORIES } from '@/lib/types'
 
 // ─── Recursive JSON tree viewer ──────────────────────────────────────────────
@@ -36,12 +37,12 @@ function JsonValue({ value, depth = 0 }: { value: unknown; depth?: number }) {
 
   if (value === null) return <span className="text-muted-foreground italic text-xs">null</span>
   if (typeof value === 'boolean') return <span className={`text-xs font-mono ${value ? 'text-success' : 'text-destructive'}`}>{String(value)}</span>
-  if (typeof value === 'number') return <span className="text-xs font-mono text-blue-400">{value}</span>
+  if (typeof value === 'number') return <span className="text-xs font-mono text-primary">{value}</span>
   if (typeof value === 'string') {
     const isUrl = value.startsWith('http')
     return isUrl
       ? <a href={value} target="_blank" rel="noopener noreferrer" className="text-xs font-mono text-primary underline break-all">{value}</a>
-      : <span className="text-xs font-mono text-orange-400 break-all">"{value}"</span>
+      : <span className="text-xs font-mono text-warning break-all">"{value}"</span>
   }
 
   if (Array.isArray(value)) {
@@ -104,7 +105,7 @@ function JsonTree({ data }: { data: Record<string, unknown> }) {
 }
 
 const TAG_COLORS: Record<string, string> = {
-  minor: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/30',
+  minor: 'bg-warning/10 text-warning border-warning/30',
   major: 'bg-destructive/10 text-destructive border-destructive/30',
 }
 
@@ -239,12 +240,12 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
   const ACTION_META: Record<string, { label: string; Icon: React.ElementType; dot: string; bg: string }> = {
     'claimed':                   { label: 'Task Claimed',               Icon: Play,           dot: 'bg-success',     bg: 'bg-success/20 text-success' },
     'paused':                    { label: 'Task Paused',                Icon: Pause,          dot: 'bg-muted-foreground', bg: 'bg-muted text-muted-foreground' },
-    'resumed':                   { label: 'Task Resumed',               Icon: Play,           dot: 'bg-blue-400',    bg: 'bg-blue-500/20 text-blue-400' },
+    'resumed':                   { label: 'Task Resumed',               Icon: Play,           dot: 'bg-primary',     bg: 'bg-primary/20 text-primary' },
     'parked':                    { label: 'Task Parked',                Icon: ParkingSquare,  dot: 'bg-warning',     bg: 'bg-warning/20 text-warning' },
     'submitted':                 { label: 'Submitted for Review',       Icon: Send,           dot: 'bg-primary',     bg: 'bg-primary/20 text-primary' },
-    'resubmitted-after-rework':  { label: 'Resubmitted After Rework',  Icon: RotateCcw,      dot: 'bg-orange-400',  bg: 'bg-orange-500/20 text-orange-400' },
-    'recalled':                  { label: 'Recalled for Edits',         Icon: CornerUpLeft,   dot: 'bg-yellow-400',  bg: 'bg-yellow-500/20 text-yellow-400' },
-    'escalated':                 { label: 'Escalated',                  Icon: ArrowUpCircle,  dot: 'bg-orange-400',  bg: 'bg-orange-500/20 text-orange-400' },
+    'resubmitted-after-rework':  { label: 'Resubmitted After Rework',  Icon: RotateCcw,      dot: 'bg-warning',     bg: 'bg-warning/20 text-warning' },
+    'recalled':                  { label: 'Recalled for Edits',         Icon: CornerUpLeft,   dot: 'bg-warning',     bg: 'bg-warning/20 text-warning' },
+    'escalated':                 { label: 'Escalated',                  Icon: ArrowUpCircle,  dot: 'bg-destructive', bg: 'bg-destructive/20 text-destructive' },
     'unenrolled':                { label: 'Unenrolled',                 Icon: UserX,          dot: 'bg-destructive', bg: 'bg-destructive/20 text-destructive' },
     'signed-off':                { label: 'Signed Off — Data Ready',   Icon: ShieldCheck,    dot: 'bg-success',     bg: 'bg-success/20 text-success' },
     'requested-rework':          { label: 'Rework Requested',           Icon: AlertTriangle,  dot: 'bg-warning',     bg: 'bg-warning/20 text-warning' },
@@ -263,7 +264,7 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
   if (!task) return null
 
   const isAnnotator = user?.role === 'annotator'
-  const isReviewer = user?.role === 'reviewer' || user?.role === 'admin'
+  const isReviewer = isReviewerOrAbove(user?.role ?? 'annotator')
   const isMyTask = task.annotatorId === user?.id
   const isMyReview = task.reviewerId === user?.id
   const isLocked = task.isLocked === true
@@ -296,9 +297,9 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
 
         {/* In-Review notice for annotator */}
         {isAnnotator && isMyTask && isInReview && (
-          <div className="mb-4 flex items-center gap-3 p-3 rounded-lg bg-blue-500/10 border border-blue-500/30">
-            <Clock className="h-4 w-4 text-blue-400 shrink-0" />
-            <p className="text-sm text-blue-400">This task is currently being reviewed. Edits are not allowed while in review.</p>
+          <div className="mb-4 flex items-center gap-3 p-3 rounded-lg bg-primary/10 border border-primary/30">
+            <Clock className="h-4 w-4 text-primary shrink-0" />
+            <p className="text-sm text-primary">This task is currently being reviewed. Edits are not allowed while in review.</p>
           </div>
         )}
 
@@ -340,7 +341,7 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
                 )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
-                  className="text-orange-400 focus:text-orange-400 focus:bg-orange-500/10"
+                  className="text-destructive focus:text-destructive focus:bg-destructive/10"
                   onClick={() => setShowEscalate(true)}>
                   <ArrowUpCircle className="h-3.5 w-3.5 mr-2" />Escalate Task
                 </DropdownMenuItem>
@@ -786,7 +787,7 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
                         <button key={sev} type="button"
                           className={`flex-1 text-xs py-1.5 rounded border capitalize transition-colors ${
                             newTag.severity === sev
-                              ? sev === 'major' ? 'bg-destructive/15 border-destructive/40 text-destructive' : 'bg-yellow-500/15 border-yellow-500/40 text-yellow-600'
+                              ? sev === 'major' ? 'bg-destructive/15 border-destructive/40 text-destructive' : 'bg-warning/15 border-warning/40 text-warning'
                               : 'border-border text-muted-foreground hover:border-muted-foreground'
                           }`}
                           onClick={() => setNewTag(p => ({ ...p, severity: sev, category: '' }))}>
@@ -921,7 +922,7 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <ArrowUpCircle className="h-5 w-5 text-orange-400" />Escalate Task
+              <ArrowUpCircle className="h-5 w-5 text-destructive" />Escalate Task
             </DialogTitle>
             <DialogDescription>
               Flag this task for admin or reviewer attention — use this if you&apos;re blocked, the instructions are unclear, or an issue is preventing completion.
@@ -937,7 +938,7 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
           <DialogFooter>
             <Button variant="outline" onClick={() => { setShowEscalate(false); setEscalateComment('') }}>Cancel</Button>
             <Button
-              className="bg-orange-500 hover:bg-orange-600 text-white"
+              variant="destructive"
               disabled={isSubmitting || !escalateComment.trim()}
               onClick={async () => {
                 await handleAction('escalate', { comment: escalateComment })

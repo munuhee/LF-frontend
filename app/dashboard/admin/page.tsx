@@ -6,7 +6,8 @@ import Link from 'next/link'
 import {
   Users, Plus, Award, UserPlus, Workflow, Layers, X, Check,
   Upload, FileJson, FileText, ChevronDown, ChevronRight,
-  ListTodo, ExternalLink, AlertCircle,
+  ListTodo, ExternalLink, AlertCircle, Building2, Globe,
+  ShieldCheck, UserCheck, Trash2, RefreshCw, Eye, Search,
 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -20,11 +21,468 @@ import { Textarea } from '@/components/ui/textarea'
 import { TopBar } from '@/components/top-bar'
 import { useAuth } from '@/lib/auth-context'
 import { api } from '@/lib/api'
-import type { User, Workflow as WorkflowType, Batch } from '@/lib/types'
+import type { User, Workflow as WorkflowType, Batch, Client } from '@/lib/types'
+import { isClientAdmin, isSuperAdmin } from '@/lib/types'
 
 const TASK_TYPES = ['agentic-ai', 'llm-training', 'multimodal', 'evaluation', 'benchmarking', 'preference-ranking', 'red-teaming', 'data-collection']
 
 export default function AdminPage() {
+  const { user } = useAuth()
+  // Super admin gets an entirely different platform-management view
+  if (user?.role === 'super_admin') return <SuperAdminPage />
+  return <ClientAdminPage />
+}
+
+// ─── Super Admin: platform-wide workspace & user management ───────────────────
+
+type ClientMember = { id: string; userId: string; name: string; email: string; role: string; isActive: boolean; joinedAt: string }
+
+function SuperAdminPage() {
+  const { user } = useAuth()
+  const [clients, setClients] = useState<Client[]>([])
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null)
+  const [members, setMembers] = useState<ClientMember[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [membersLoading, setMembersLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [clientSearch, setClientSearch] = useState('')
+  const [memberSearch, setMemberSearch] = useState('')
+  const [memberRoleFilter, setMemberRoleFilter] = useState('all')
+
+  // Create workspace dialog
+  const [showCreate, setShowCreate] = useState(false)
+  const [newClient, setNewClient] = useState({ name: '', slug: '', description: '', plan: 'starter' })
+  const [isCreating, setIsCreating] = useState(false)
+
+  // Add member dialog
+  const [showAddMember, setShowAddMember] = useState(false)
+  const [newMember, setNewMember] = useState({ email: '', role: 'annotator' })
+  const [isAddingMember, setIsAddingMember] = useState(false)
+
+  // Impersonate dialog
+  const [impersonating, setImpersonating] = useState<ClientMember | null>(null)
+  const [isImpersonating, setIsImpersonating] = useState(false)
+
+  const loadClients = () =>
+    api.clients.list()
+      .then(setClients)
+      .catch((e: unknown) => setError(e instanceof Error ? e.message : 'Failed'))
+      .finally(() => setIsLoading(false))
+
+  useEffect(() => { loadClients() }, [])
+
+  const loadMembers = async (client: Client) => {
+    setSelectedClient(client)
+    setMembers([])
+    setMembersLoading(true)
+    // Temporarily switch x-tenant-id by passing it as a query param isn't possible
+    // Instead, we fetch memberships via the general users list filtered for this client.
+    // The /api/memberships route reads x-tenant-id from the token — for super_admin we
+    // call /api/clients/[id] which returns member info, or we use a dedicated endpoint.
+    // For now we use the users list (which for super_admin returns all users).
+    try {
+      const data = await api.memberships.listForClient(client.id)
+      setMembers(data)
+    } catch {
+      setMembers([])
+    } finally {
+      setMembersLoading(false)
+    }
+  }
+
+  const handleCreateWorkspace = async () => {
+    if (!newClient.name || !newClient.slug) return
+    setIsCreating(true)
+    try {
+      const created = await api.clients.create(newClient)
+      setClients(prev => [...prev, created])
+      setShowCreate(false)
+      setNewClient({ name: '', slug: '', description: '', plan: 'starter' })
+    } catch (e: unknown) { alert(e instanceof Error ? e.message : 'Failed') }
+    finally { setIsCreating(false) }
+  }
+
+  const handleAddMember = async () => {
+    if (!selectedClient || !newMember.email) return
+    setIsAddingMember(true)
+    try {
+      await api.memberships.addToClient(selectedClient.id, newMember)
+      await loadMembers(selectedClient)
+      setShowAddMember(false)
+      setNewMember({ email: '', role: 'annotator' })
+    } catch (e: unknown) { alert(e instanceof Error ? e.message : 'Failed') }
+    finally { setIsAddingMember(false) }
+  }
+
+  const handleDeactivateWorkspace = async (client: Client) => {
+    if (!confirm(`Deactivate workspace "${client.name}"? Users will lose access.`)) return
+    try {
+      await api.clients.deactivate(client.id)
+      setClients(prev => prev.map(c => c.id === client.id ? { ...c, isActive: false } : c))
+      if (selectedClient?.id === client.id) setSelectedClient(c => c ? { ...c, isActive: false } : c)
+    } catch (e: unknown) { alert(e instanceof Error ? e.message : 'Failed') }
+  }
+
+  const handleActivateWorkspace = async (client: Client) => {
+    try {
+      await api.clients.activate(client.id)
+      setClients(prev => prev.map(c => c.id === client.id ? { ...c, isActive: true } : c))
+      if (selectedClient?.id === client.id) setSelectedClient(c => c ? { ...c, isActive: true } : c)
+    } catch (e: unknown) { alert(e instanceof Error ? e.message : 'Failed') }
+  }
+
+  const handleImpersonate = async () => {
+    if (!impersonating || !selectedClient) return
+    setIsImpersonating(true)
+    try {
+      await api.auth.impersonate(impersonating.userId, selectedClient.slug)
+      // Reload to pick up the new session cookie
+      window.location.href = `/${selectedClient.slug}/dashboard`
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : 'Failed to impersonate')
+      setIsImpersonating(false)
+    }
+  }
+
+  const handleRemoveMember = async (member: ClientMember) => {
+    if (!confirm(`Remove ${member.name} from this workspace?`)) return
+    try {
+      await api.memberships.deactivate(member.id)
+      setMembers(prev => prev.map(m => m.id === member.id ? { ...m, isActive: false } : m))
+    } catch (e: unknown) { alert(e instanceof Error ? e.message : 'Failed') }
+  }
+
+  const planColor: Record<string, string> = {
+    enterprise: 'bg-destructive/10 text-destructive border-destructive/20',
+    pro:        'bg-warning/10 text-warning border-warning/20',
+    starter:    'bg-muted text-muted-foreground border-border',
+  }
+  const roleColor: Record<string, string> = {
+    client_admin:      'bg-warning/10 text-warning border-warning/20',
+    qa_lead:           'bg-success/10 text-success border-success/20',
+    reviewer:          'bg-primary/10 text-primary border-primary/20',
+    annotator:         'bg-muted text-foreground border-border',
+    reviewer_annotator:'bg-primary/20 text-primary border-primary/30',
+  }
+
+  return (
+    <>
+      <TopBar title="Workspaces" subtitle="Platform-wide client management" />
+      <main className="flex-1 overflow-y-auto p-4 lg:p-6">
+        {isLoading ? (
+          <div className="flex items-center justify-center py-12 text-muted-foreground">Loading...</div>
+        ) : error ? (
+          <div className="text-destructive text-sm text-center py-12">{error}</div>
+        ) : (
+          <div className="grid lg:grid-cols-5 gap-6">
+
+            {/* ── Left: workspace list ── */}
+            <div className="lg:col-span-2 space-y-3">
+              <div className="flex items-center justify-between">
+                <h2 className="text-sm font-semibold">
+                  Workspaces {clientSearch ? `(${clients.filter(c => c.name.toLowerCase().includes(clientSearch.toLowerCase()) || c.slug.toLowerCase().includes(clientSearch.toLowerCase())).length}/${clients.length})` : `(${clients.length})`}
+                </h2>
+                <Button size="sm" className="gap-1.5 text-xs h-7" onClick={() => setShowCreate(true)}>
+                  <Plus className="h-3.5 w-3.5" />New
+                </Button>
+              </div>
+
+              {/* Workspace search */}
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+                <Input
+                  value={clientSearch} onChange={e => setClientSearch(e.target.value)}
+                  placeholder="Search by name or slug…" className="h-8 pl-8 text-xs"
+                />
+              </div>
+
+              {(() => {
+                const filtered = clients.filter(c =>
+                  !clientSearch ||
+                  c.name.toLowerCase().includes(clientSearch.toLowerCase()) ||
+                  c.slug.toLowerCase().includes(clientSearch.toLowerCase())
+                )
+                if (filtered.length === 0) return (
+                  <Card className="border-border bg-card">
+                    <CardContent className="p-4 text-center text-sm text-muted-foreground">
+                      {clientSearch ? 'No workspaces match your search.' : 'No workspaces yet.'}
+                    </CardContent>
+                  </Card>
+                )
+                return filtered.map(client => (
+                  <Card
+                    key={client.id}
+                    onClick={() => loadMembers(client)}
+                    className={`border-border bg-card cursor-pointer transition-colors hover:border-primary/50 ${selectedClient?.id === client.id ? 'border-primary ring-1 ring-primary/30' : ''}`}
+                  >
+                    <CardContent className="p-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary text-sm font-bold shrink-0">
+                            {client.name.charAt(0)}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-foreground truncate">{client.name}</p>
+                            <p className="text-[10px] text-muted-foreground font-mono">{client.slug}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <Badge variant="outline" className={`text-[10px] ${planColor[client.plan]}`}>{client.plan}</Badge>
+                          {!client.isActive && <Badge variant="outline" className="text-[10px] text-muted-foreground">Off</Badge>}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))
+              })()}
+            </div>
+
+            {/* ── Right: selected workspace detail ── */}
+            <div className="lg:col-span-3">
+              {!selectedClient ? (
+                <div className="flex items-center justify-center h-64 rounded-xl border border-dashed border-border text-sm text-muted-foreground">
+                  Select a workspace to manage its members
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {/* Header */}
+                  <Card className="border-border bg-card">
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <div className="flex items-center gap-2 mb-1 flex-wrap">
+                            <h3 className="font-semibold text-foreground">{selectedClient.name}</h3>
+                            <Badge variant="outline" className={`text-[10px] ${planColor[selectedClient.plan]}`}>{selectedClient.plan}</Badge>
+                            {!selectedClient.isActive && <Badge variant="outline" className="text-[10px] text-muted-foreground">Inactive</Badge>}
+                          </div>
+                          <p className="text-xs text-muted-foreground font-mono">{selectedClient.slug}</p>
+                          {selectedClient.description && <p className="text-xs text-muted-foreground mt-1">{selectedClient.description}</p>}
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <Button size="sm" variant="outline" className="text-xs h-7 gap-1" asChild>
+                            <a href={`/${selectedClient.slug}/login`} target="_blank" rel="noreferrer">
+                              <Globe className="h-3 w-3" />Open
+                            </a>
+                          </Button>
+                          {selectedClient.isActive ? (
+                            <Button size="sm" variant="outline" className="text-xs h-7 gap-1 text-destructive hover:text-destructive" onClick={() => handleDeactivateWorkspace(selectedClient)}>
+                              <Trash2 className="h-3 w-3" />Deactivate
+                            </Button>
+                          ) : (
+                            <Button size="sm" variant="outline" className="text-xs h-7 gap-1" onClick={() => handleActivateWorkspace(selectedClient)}>
+                              <RefreshCw className="h-3 w-3" />Activate
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Members */}
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-semibold">Members {memberSearch || memberRoleFilter !== 'all' ? `(${members.filter(m => (!memberSearch || m.name.toLowerCase().includes(memberSearch.toLowerCase()) || m.email.toLowerCase().includes(memberSearch.toLowerCase())) && (memberRoleFilter === 'all' || m.role === memberRoleFilter)).length}/${members.length})` : `(${members.length})`}</h4>
+                    <Button size="sm" className="gap-1.5 text-xs h-7" onClick={() => setShowAddMember(true)}>
+                      <UserPlus className="h-3.5 w-3.5" />Add Member
+                    </Button>
+                  </div>
+
+                  {/* Member filters */}
+                  {members.length > 0 && (
+                    <div className="flex gap-2">
+                      <div className="relative flex-1">
+                        <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+                        <Input value={memberSearch} onChange={e => setMemberSearch(e.target.value)}
+                          placeholder="Search by name or email…" className="h-8 pl-8 text-xs" />
+                      </div>
+                      <Select value={memberRoleFilter} onValueChange={setMemberRoleFilter}>
+                        <SelectTrigger className="h-8 text-xs w-32 shrink-0"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Roles</SelectItem>
+                          <SelectItem value="client_admin">Admin</SelectItem>
+                          <SelectItem value="qa_lead">QA Lead</SelectItem>
+                          <SelectItem value="reviewer">Reviewer</SelectItem>
+                          <SelectItem value="reviewer_annotator">Rev/Annotator</SelectItem>
+                          <SelectItem value="annotator">Annotator</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
+                  {membersLoading ? (
+                    <p className="text-sm text-muted-foreground py-4 text-center">Loading members...</p>
+                  ) : members.length === 0 ? (
+                    <Card className="border-border bg-card">
+                      <CardContent className="p-6 text-center text-sm text-muted-foreground">
+                        No members yet. Click <strong>Add Member</strong> to onboard users.
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    <div className="space-y-2">
+                      {members.filter(m =>
+                        (!memberSearch || m.name.toLowerCase().includes(memberSearch.toLowerCase()) || m.email.toLowerCase().includes(memberSearch.toLowerCase())) &&
+                        (memberRoleFilter === 'all' || m.role === memberRoleFilter)
+                      ).map(member => (
+                        <Card key={member.id} className={`border-border bg-card ${!member.isActive ? 'opacity-50' : ''}`}>
+                          <CardContent className="p-3">
+                            <div className="flex items-center justify-between gap-3">
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/20 text-primary text-xs font-semibold shrink-0">
+                                  {member.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <p className="text-sm font-medium truncate">{member.name}</p>
+                                    <Badge variant="outline" className={`text-[10px] ${roleColor[member.role] ?? 'bg-secondary'}`}>{member.role.replace('_', ' ')}</Badge>
+                                    {!member.isActive && <Badge variant="outline" className="text-[10px] text-muted-foreground">Removed</Badge>}
+                                  </div>
+                                  <p className="text-xs text-muted-foreground truncate">{member.email}</p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                {member.isActive && (
+                                  <>
+                                    <Button
+                                      size="sm" variant="ghost" className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                                      title={`Impersonate ${member.name}`}
+                                      onClick={() => setImpersonating(member)}
+                                    >
+                                      <Eye className="h-3.5 w-3.5" />
+                                    </Button>
+                                    <Button
+                                      size="sm" variant="ghost" className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                                      title="Remove from workspace"
+                                      onClick={() => handleRemoveMember(member)}
+                                    >
+                                      <X className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── Create workspace dialog ── */}
+        <Dialog open={showCreate} onOpenChange={setShowCreate}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Create Workspace</DialogTitle>
+              <DialogDescription>A new isolated client workspace on the platform.</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3 py-2">
+              <div>
+                <Label className="text-xs">Workspace Name</Label>
+                <Input placeholder="Acme Corp" value={newClient.name}
+                  onChange={e => {
+                    const name = e.target.value
+                    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+                    setNewClient(p => ({ ...p, name, slug }))
+                  }} className="mt-1 h-8 text-sm" />
+              </div>
+              <div>
+                <Label className="text-xs">Slug <span className="text-muted-foreground">(URL-safe, auto-filled)</span></Label>
+                <Input placeholder="acme-corp" value={newClient.slug}
+                  onChange={e => setNewClient(p => ({ ...p, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') }))}
+                  className="mt-1 h-8 text-sm font-mono" />
+              </div>
+              <div>
+                <Label className="text-xs">Description</Label>
+                <Input placeholder="Optional description" value={newClient.description}
+                  onChange={e => setNewClient(p => ({ ...p, description: e.target.value }))} className="mt-1 h-8 text-sm" />
+              </div>
+              <div>
+                <Label className="text-xs">Plan</Label>
+                <Select value={newClient.plan} onValueChange={v => setNewClient(p => ({ ...p, plan: v }))}>
+                  <SelectTrigger className="mt-1 h-8 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="starter">Starter</SelectItem>
+                    <SelectItem value="pro">Pro</SelectItem>
+                    <SelectItem value="enterprise">Enterprise</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" size="sm" onClick={() => setShowCreate(false)}>Cancel</Button>
+              <Button size="sm" onClick={handleCreateWorkspace} disabled={isCreating || !newClient.name || !newClient.slug}>
+                {isCreating ? 'Creating...' : 'Create Workspace'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* ── Add member dialog ── */}
+        <Dialog open={showAddMember} onOpenChange={setShowAddMember}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Add Member to {selectedClient?.name}</DialogTitle>
+              <DialogDescription>The user must already exist in the system. They will receive workspace access with the selected role.</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3 py-2">
+              <div>
+                <Label className="text-xs">Email Address</Label>
+                <Input type="email" placeholder="user@company.com" value={newMember.email}
+                  onChange={e => setNewMember(p => ({ ...p, email: e.target.value }))} className="mt-1 h-8 text-sm" />
+              </div>
+              <div>
+                <Label className="text-xs">Role</Label>
+                <Select value={newMember.role} onValueChange={v => setNewMember(p => ({ ...p, role: v }))}>
+                  <SelectTrigger className="mt-1 h-8 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="annotator">Annotator</SelectItem>
+                    <SelectItem value="reviewer">Reviewer</SelectItem>
+                    <SelectItem value="reviewer_annotator">Reviewer / Annotator</SelectItem>
+                    <SelectItem value="qa_lead">QA Lead</SelectItem>
+                    <SelectItem value="client_admin">Workspace Admin</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" size="sm" onClick={() => setShowAddMember(false)}>Cancel</Button>
+              <Button size="sm" onClick={handleAddMember} disabled={isAddingMember || !newMember.email}>
+                {isAddingMember ? 'Adding...' : 'Add Member'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* ── Impersonate dialog ── */}
+        <Dialog open={!!impersonating} onOpenChange={v => !v && setImpersonating(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Impersonate User</DialogTitle>
+              <DialogDescription>
+                You will be logged in as <strong>{impersonating?.name}</strong> ({impersonating?.role.replace('_', ' ')}) in workspace <strong>{selectedClient?.name}</strong> for 1 hour.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="p-3 rounded-lg bg-warning/10 border border-warning/30 text-sm text-warning">
+              Your current super admin session will be replaced. To return, log in again at <code className="font-mono text-xs">/login</code>.
+            </div>
+            <DialogFooter>
+              <Button variant="outline" size="sm" onClick={() => setImpersonating(null)}>Cancel</Button>
+              <Button size="sm" variant="destructive" onClick={handleImpersonate} disabled={isImpersonating}>
+                {isImpersonating ? 'Starting...' : `Impersonate ${impersonating?.name}`}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </main>
+    </>
+  )
+}
+
+// ─── Client Admin: workspace-scoped management ────────────────────────────────
+
+function ClientAdminPage() {
   const { user } = useAuth()
   const router = useRouter()
   const [users, setUsers] = useState<User[]>([])
@@ -33,10 +491,23 @@ export default function AdminPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  // ── Filters ──────────────────────────────────────────────────────────────────
+  const [userSearch, setUserSearch] = useState('')
+  const [userRoleFilter, setUserRoleFilter] = useState('all')
+  const [wfSearch, setWfSearch] = useState('')
+  const [wfTypeFilter, setWfTypeFilter] = useState('all')
+  const [batchSearch, setBatchSearch] = useState('')
+  const [batchStatusFilter, setBatchStatusFilter] = useState('all')
+
   // Dialogs
   const [showCreateUser, setShowCreateUser] = useState(false)
   const [newUser, setNewUser] = useState({ name: '', email: '', password: '', role: 'annotator', department: '' })
   const [isCreating, setIsCreating] = useState(false)
+
+  // Add existing user to workspace
+  const [showAddMember, setShowAddMember] = useState(false)
+  const [addMemberForm, setAddMemberForm] = useState({ email: '', role: 'annotator' })
+  const [isAddingMember, setIsAddingMember] = useState(false)
 
   const [showCreateWorkflow, setShowCreateWorkflow] = useState(false)
   const [newWorkflow, setNewWorkflow] = useState({ name: '', description: '', type: 'agentic-ai' })
@@ -66,14 +537,14 @@ export default function AdminPage() {
   const [expandedWorkflows, setExpandedWorkflows] = useState<Set<string>>(new Set())
 
   useEffect(() => {
-    if (user && user.role !== 'admin') { router.push('/dashboard'); return }
+    if (user && !isClientAdmin(user.role)) { router.push('/dashboard'); return }
     Promise.all([api.users.list(), api.workflows.list(), api.batches.list()])
       .then(([u, w, b]) => { setUsers(u); setWorkflows(w); setBatches(b) })
       .catch((e: unknown) => setError(e instanceof Error ? e.message : 'Failed to load'))
       .finally(() => setIsLoading(false))
   }, [user])
 
-  if (!user || user.role !== 'admin') return null
+  if (!user || !isClientAdmin(user.role)) return null
 
   // ─── handlers ────────────────────────────────────────────────────────────────
 
@@ -86,6 +557,19 @@ export default function AdminPage() {
       setNewUser({ name: '', email: '', password: '', role: 'annotator', department: '' })
     } catch (e: unknown) { alert(e instanceof Error ? e.message : 'Failed') }
     finally { setIsCreating(false) }
+  }
+
+  const handleAddMember = async () => {
+    if (!addMemberForm.email) return
+    setIsAddingMember(true)
+    try {
+      await api.memberships.add(addMemberForm)
+      const updated = await api.users.list()
+      setUsers(updated)
+      setShowAddMember(false)
+      setAddMemberForm({ email: '', role: 'annotator' })
+    } catch (e: unknown) { alert(e instanceof Error ? e.message : 'Failed') }
+    finally { setIsAddingMember(false) }
   }
 
   const handleCreateWorkflow = async () => {
@@ -221,9 +705,9 @@ export default function AdminPage() {
   // ─── helpers ─────────────────────────────────────────────────────────────────
 
   const badgeTypeColors: Record<string, string> = {
-    role: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
-    expertise: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
-    level: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+    role:      'bg-primary/10 text-primary border-primary/20',
+    expertise: 'bg-success/10 text-success border-success/20',
+    level:     'bg-warning/10 text-warning border-warning/20',
   }
 
   const toggleExpand = (id: string) => {
@@ -259,16 +743,53 @@ export default function AdminPage() {
           {/* ── Users ──────────────────────────────────────────── */}
           <TabsContent value="users" className="space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-medium text-muted-foreground">{users.length} total users</h3>
-              <Button size="sm" className="gap-1.5 h-8 text-xs" onClick={() => setShowCreateUser(true)}>
-                <UserPlus className="h-3.5 w-3.5" />Create User
-              </Button>
+              <h3 className="text-sm font-medium text-muted-foreground">
+                {userSearch || userRoleFilter !== 'all'
+                  ? `${users.filter(u => (!userSearch || u.name.toLowerCase().includes(userSearch.toLowerCase()) || u.email.toLowerCase().includes(userSearch.toLowerCase())) && (userRoleFilter === 'all' || u.role === userRoleFilter)).length} / ${users.length} users`
+                  : `${users.length} total users`}
+              </h3>
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="outline" className="gap-1.5 h-8 text-xs" onClick={() => setShowAddMember(true)}>
+                  <UserCheck className="h-3.5 w-3.5" />Add Member
+                </Button>
+                <Button size="sm" className="gap-1.5 h-8 text-xs" onClick={() => setShowCreateUser(true)}>
+                  <UserPlus className="h-3.5 w-3.5" />Create User
+                </Button>
+              </div>
             </div>
+
+            {/* Filters */}
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+                <Input value={userSearch} onChange={e => setUserSearch(e.target.value)}
+                  placeholder="Search by name or email…" className="h-8 pl-8 text-xs" />
+              </div>
+              <Select value={userRoleFilter} onValueChange={setUserRoleFilter}>
+                <SelectTrigger className="h-8 text-xs w-36 shrink-0"><SelectValue placeholder="All Roles" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Roles</SelectItem>
+                  <SelectItem value="annotator">Annotator</SelectItem>
+                  <SelectItem value="reviewer">Reviewer</SelectItem>
+                  <SelectItem value="reviewer_annotator">Rev / Annotator</SelectItem>
+                  <SelectItem value="qa_lead">QA Lead</SelectItem>
+                  <SelectItem value="client_admin">Admin</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
             {isLoading ? <div className="flex items-center justify-center py-12 text-muted-foreground">Loading...</div>
               : error ? <div className="text-destructive text-sm text-center py-12">{error}</div>
-              : (
+              : (() => {
+                const filtered = users.filter(u =>
+                  (!userSearch || u.name.toLowerCase().includes(userSearch.toLowerCase()) || u.email.toLowerCase().includes(userSearch.toLowerCase())) &&
+                  (userRoleFilter === 'all' || u.role === userRoleFilter)
+                )
+                return filtered.length === 0 ? (
+                  <div className="text-center py-8 text-sm text-muted-foreground">No users match the current filter.</div>
+                ) : (
                 <div className="space-y-3">
-                  {users.map(u => (
+                  {filtered.map(u => (
                     <Card key={u.id} className="border-border bg-card">
                       <CardContent className="p-4">
                         <div className="flex items-start gap-3">
@@ -308,19 +829,50 @@ export default function AdminPage() {
                     </Card>
                   ))}
                 </div>
-              )}
+                )
+              })()}
           </TabsContent>
 
           {/* ── Workflows ──────────────────────────────────────── */}
           <TabsContent value="workflows" className="space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-medium text-muted-foreground">{workflows.length} workflows</h3>
+              <h3 className="text-sm font-medium text-muted-foreground">
+                {wfSearch || wfTypeFilter !== 'all'
+                  ? `${workflows.filter(w => (!wfSearch || w.name.toLowerCase().includes(wfSearch.toLowerCase())) && (wfTypeFilter === 'all' || w.type === wfTypeFilter)).length} / ${workflows.length} workflows`
+                  : `${workflows.length} workflows`}
+              </h3>
               <Button size="sm" className="gap-1.5 h-8 text-xs" onClick={() => setShowCreateWorkflow(true)}>
                 <Plus className="h-3.5 w-3.5" />Create Workflow
               </Button>
             </div>
+
+            {/* Workflow filters */}
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+                <Input value={wfSearch} onChange={e => setWfSearch(e.target.value)}
+                  placeholder="Search by name…" className="h-8 pl-8 text-xs" />
+              </div>
+              <Select value={wfTypeFilter} onValueChange={setWfTypeFilter}>
+                <SelectTrigger className="h-8 text-xs w-40 shrink-0"><SelectValue placeholder="All Types" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Types</SelectItem>
+                  {TASK_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {workflows.filter(w =>
+              (!wfSearch || w.name.toLowerCase().includes(wfSearch.toLowerCase())) &&
+              (wfTypeFilter === 'all' || w.type === wfTypeFilter)
+            ).length === 0 && (
+              <div className="text-center py-8 text-sm text-muted-foreground">No workflows match the current filter.</div>
+            )}
             <div className="space-y-3">
-              {workflows.map(w => {
+              {workflows.filter(w =>
+                (!wfSearch || w.name.toLowerCase().includes(wfSearch.toLowerCase())) &&
+                (wfTypeFilter === 'all' || w.type === wfTypeFilter)
+              ).map(w => {
                 const assigned = (w.assignedUsers || []) as string[]
                 const assignedObjs = users.filter(u => assigned.includes(u.id))
                 return (
@@ -385,6 +937,25 @@ export default function AdminPage() {
               </Button>
             </div>
 
+            {/* Batch filters */}
+            <div className="flex gap-2 flex-wrap">
+              <div className="relative flex-1 min-w-[160px]">
+                <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+                <Input value={batchSearch} onChange={e => setBatchSearch(e.target.value)}
+                  placeholder="Search batches…" className="h-8 pl-8 text-xs" />
+              </div>
+              <Select value={batchStatusFilter} onValueChange={setBatchStatusFilter}>
+                <SelectTrigger className="h-8 text-xs w-36 shrink-0"><SelectValue placeholder="All Statuses" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Statuses</SelectItem>
+                  <SelectItem value="available">Available</SelectItem>
+                  <SelectItem value="in-progress">In Progress</SelectItem>
+                  <SelectItem value="pending-review">Pending Review</SelectItem>
+                  <SelectItem value="completed">Completed</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
             {isLoading ? <div className="flex items-center justify-center py-12 text-muted-foreground">Loading...</div>
               : error ? <div className="text-destructive text-sm text-center py-12">{error}</div>
               : workflows.length === 0 ? (
@@ -397,10 +968,16 @@ export default function AdminPage() {
               ) : (
                 <div className="space-y-3">
                   {workflows.map(wf => {
-                    const wfBatches = batchesByWorkflow[wf.id] ?? []
+                    const allWfBatches = batchesByWorkflow[wf.id] ?? []
+                    const wfBatches = allWfBatches.filter(b =>
+                      (!batchSearch || b.title.toLowerCase().includes(batchSearch.toLowerCase())) &&
+                      (batchStatusFilter === 'all' || b.status === batchStatusFilter)
+                    )
+                    // Hide workflow accordion when filters are active and no batches match
+                    if ((batchSearch || batchStatusFilter !== 'all') && wfBatches.length === 0) return null
                     const expanded = expandedWorkflows.has(wf.id)
-                    const totalTasks = wfBatches.reduce((s, b) => s + b.tasksTotal, 0)
-                    const completedTasks = wfBatches.reduce((s, b) => s + b.tasksCompleted, 0)
+                    const totalTasks    = allWfBatches.reduce((s, b) => s + b.tasksTotal, 0)
+                    const completedTasks = allWfBatches.reduce((s, b) => s + b.tasksCompleted, 0)
                     return (
                       <Card key={wf.id} className="border-border bg-card">
                         {/* Workflow header row */}
@@ -415,7 +992,11 @@ export default function AdminPage() {
                               </div>
                             </div>
                             <div className="flex items-center gap-4 text-xs text-muted-foreground shrink-0">
-                              <span>{wfBatches.length} batch{wfBatches.length !== 1 ? 'es' : ''}</span>
+                              <span>
+                                {(batchSearch || batchStatusFilter !== 'all') && wfBatches.length !== allWfBatches.length
+                                  ? `${wfBatches.length}/${allWfBatches.length} batches`
+                                  : `${allWfBatches.length} batch${allWfBatches.length !== 1 ? 'es' : ''}`}
+                              </span>
                               <span>{completedTasks}/{totalTasks} tasks</span>
                             </div>
                           </div>
@@ -498,18 +1079,26 @@ export default function AdminPage() {
               <CardContent className="space-y-4">
                 <div className="p-4 rounded-lg bg-warning/10 border border-warning/30">
                   <p className="text-sm text-warning font-medium">Warning: This will delete all existing data!</p>
-                  <p className="text-xs text-muted-foreground mt-1">Creates 7 users (4 annotators, 2 reviewers, 1 admin), 3 workflows, 4 batches, 15 tasks across varied statuses, 6 reviews, and 9 notifications — all with Kenyan context.</p>
+                  <p className="text-xs text-muted-foreground mt-1">Creates 2 workspaces (acme-corp, techlab), each with 1 Agentic AI workflow, 1 batch, and varied task statuses. All users have @labelforge.ai emails.</p>
                 </div>
                 <Button variant="destructive" size="sm" onClick={async () => {
                   if (!confirm('Are you sure? This will delete all data.')) return
                   try {
                     const result = await api.seed()
                     const c = result.credentials
+                    const s = result.summary
                     alert(
-                      `Seeded! ${result.summary.tasks} tasks · ${result.summary.batches} batches · ${result.summary.workflows} workflows\n\n` +
-                      `Annotators (password: annotator123!):\n  ${c.annotator.email}\n  ${c.annotator2.email}\n  ${c.annotator3.email}\n  ${c.annotator4.email}\n\n` +
-                      `Reviewers (password: reviewer123!):\n  ${c.reviewer.email}\n  ${c.reviewer2.email}\n\n` +
-                      `Admin (password: admin123!):\n  ${c.admin.email}`
+                      `Seeded! ${s.tasks.total} tasks · ${s.batches} batches · ${s.workflows} workflows\n\n` +
+                      `Acme Corp  (/acme-corp/login)\n` +
+                      `  Admin:              ${c.acAdmin.email}        / admin123!\n` +
+                      `  Reviewer:           ${c.acReviewer.email}     / reviewer123!\n` +
+                      `  Annotator:          ${c.acAnnotator.email}    / annotator123!\n` +
+                      `  Rev/Annotator:      ${c.acRevAnnotator.email} / annotator123!\n\n` +
+                      `TechLab  (/techlab/login)\n` +
+                      `  Admin:              ${c.tlAdmin.email}        / admin123!\n` +
+                      `  Annotator:          ${c.tlAnnotator.email}    / annotator123!\n\n` +
+                      `Super Admin  (/login)\n` +
+                      `  ${c.superAdmin.email} / superadmin123!`
                     )
                   } catch (e: unknown) { alert(e instanceof Error ? e.message : 'Seed failed') }
                 }}>Seed Database</Button>
@@ -518,6 +1107,41 @@ export default function AdminPage() {
           </TabsContent>
         </Tabs>
       </main>
+
+      {/* ── Add Existing Member ── */}
+      <Dialog open={showAddMember} onOpenChange={setShowAddMember}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Team Member</DialogTitle>
+            <DialogDescription>Add an existing LabelForge user to this workspace by their email address.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label className="text-xs mb-1 block">Email Address</Label>
+              <Input type="email" placeholder="name@labelforge.ai" value={addMemberForm.email}
+                onChange={e => setAddMemberForm(p => ({ ...p, email: e.target.value }))} className="h-9" />
+            </div>
+            <div>
+              <Label className="text-xs mb-1 block">Role</Label>
+              <Select value={addMemberForm.role} onValueChange={v => setAddMemberForm(p => ({ ...p, role: v }))}>
+                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="annotator">Annotator — labels and completes tasks</SelectItem>
+                  <SelectItem value="reviewer">Reviewer — reviews annotator submissions</SelectItem>
+                  <SelectItem value="reviewer_annotator">Reviewer / Annotator — handles both</SelectItem>
+                  <SelectItem value="qa_lead">QA Lead — oversees quality and reviews</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAddMember(false)}>Cancel</Button>
+            <Button onClick={handleAddMember} disabled={isAddingMember || !addMemberForm.email}>
+              {isAddingMember ? 'Adding...' : 'Add to Workspace'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ── Create User ── */}
       <Dialog open={showCreateUser} onOpenChange={setShowCreateUser}>
@@ -533,6 +1157,7 @@ export default function AdminPage() {
                 <SelectContent>
                   <SelectItem value="annotator">Annotator</SelectItem>
                   <SelectItem value="reviewer">Reviewer</SelectItem>
+                  <SelectItem value="reviewer_annotator">Reviewer / Annotator</SelectItem>
                   <SelectItem value="admin">Admin</SelectItem>
                 </SelectContent>
               </Select>

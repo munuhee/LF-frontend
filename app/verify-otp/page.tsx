@@ -19,15 +19,41 @@ export default function VerifyOTPPage() {
   const [canResend, setCanResend] = useState(false)
   const [error, setError] = useState('')
   const [pendingEmail, setPendingEmail] = useState('')
+  const [clientSlug, setClientSlug] = useState<string | null>(null)
   const [testOtp, setTestOtp] = useState('')
 
   useEffect(() => {
     const email = sessionStorage.getItem('pendingAuthEmail')
-    const otp = sessionStorage.getItem('testOtp')
+    const slug = sessionStorage.getItem('pendingAuthClientSlug')
+    const storedOtp = sessionStorage.getItem('testOtp')
+    const isSuperAdmin = sessionStorage.getItem('pendingAuthIsSuperAdmin')
+
     if (!email) { router.push('/'); return }
     setPendingEmail(email)
-    if (otp) setTestOtp(otp)
-  }, [router])
+    if (!isSuperAdmin && slug) setClientSlug(slug)
+
+    if (storedOtp) {
+      setTestOtp(storedOtp)
+      setOtp(storedOtp)
+      // Auto-verify: skip the manual step for test accounts
+      setIsLoading(true)
+      const resolvedSlug = (!isSuperAdmin && slug) ? slug : undefined
+      api.auth.verifyOtp(email, storedOtp, resolvedSlug)
+        .then(data => {
+          sessionStorage.removeItem('pendingAuthEmail')
+          sessionStorage.removeItem('pendingAuthClientSlug')
+          sessionStorage.removeItem('pendingAuthIsSuperAdmin')
+          sessionStorage.removeItem('testOtp')
+          setUser(data.user)
+          const userSlug = data.user?.clientSlug
+          router.push(userSlug ? `/${userSlug}/dashboard` : '/dashboard')
+        })
+        .catch((err: unknown) => {
+          setError(err instanceof Error ? err.message : 'Invalid OTP')
+          setIsLoading(false)
+        })
+    }
+  }, [router])  // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (countdown > 0) {
@@ -43,11 +69,19 @@ export default function VerifyOTPPage() {
     setIsLoading(true)
     setError('')
     try {
-      const data = await api.auth.verifyOtp(pendingEmail, otp)
+      const data = await api.auth.verifyOtp(pendingEmail, otp, clientSlug ?? undefined)
+
+      // Clean up session storage
       sessionStorage.removeItem('pendingAuthEmail')
+      sessionStorage.removeItem('pendingAuthClientSlug')
+      sessionStorage.removeItem('pendingAuthIsSuperAdmin')
       sessionStorage.removeItem('testOtp')
+
       setUser(data.user)
-      router.push('/dashboard')
+
+      // Redirect to the correct workspace dashboard
+      const slug = data.user?.clientSlug
+      router.push(slug ? `/${slug}/dashboard` : '/dashboard')
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Invalid OTP')
     } finally {
@@ -63,10 +97,11 @@ export default function VerifyOTPPage() {
       const data = await api.auth.login(pendingEmail, '')
       if (data.testOtp) { setTestOtp(data.testOtp); sessionStorage.setItem('testOtp', data.testOtp) }
     } catch {
-      // silently fail resend
+      // silently ignore resend failures
     }
   }
 
+  const backHref = clientSlug ? `/${clientSlug}/login` : '/login'
   const formatTime = (s: number) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`
 
   return (
@@ -88,8 +123,12 @@ export default function VerifyOTPPage() {
               <Shield className="h-7 w-7 text-primary" />
             </div>
             <CardTitle className="text-xl">Two-Factor Authentication</CardTitle>
-            <CardDescription>Enter the 6-digit code sent to your email</CardDescription>
+            <CardDescription>
+              Enter the 6-digit code sent to{' '}
+              {pendingEmail && <span className="font-medium text-foreground">{pendingEmail}</span>}
+            </CardDescription>
           </CardHeader>
+
           <CardContent className="flex flex-col items-center gap-6">
             {error && (
               <div className="flex items-start gap-2 p-3 rounded-lg bg-destructive/10 text-destructive text-sm w-full">
@@ -107,14 +146,23 @@ export default function VerifyOTPPage() {
             </InputOTP>
 
             {testOtp && (
-              <div className="w-full p-3 rounded-lg bg-secondary/50 border border-border text-center">
+              <div
+                className="w-full p-3 rounded-lg bg-secondary/50 border border-border text-center cursor-pointer hover:bg-secondary/70 transition-colors"
+                onClick={() => setOtp(testOtp)}
+                title="Click to auto-fill"
+              >
                 <p className="text-xs text-muted-foreground">
-                  Test OTP: <span className="font-mono font-medium text-foreground">{testOtp}</span>
+                  Test OTP (click to fill):{' '}
+                  <span className="font-mono font-medium text-foreground">{testOtp}</span>
                 </p>
               </div>
             )}
 
-            <Button onClick={handleVerify} className="w-full" disabled={otp.length !== 6 || isLoading}>
+            <Button
+              onClick={handleVerify}
+              className="w-full"
+              disabled={otp.length !== 6 || isLoading}
+            >
               {isLoading ? (
                 <span className="flex items-center gap-2">
                   <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
@@ -135,7 +183,7 @@ export default function VerifyOTPPage() {
               )}
             </div>
 
-            <Link href="/" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
+            <Link href={backHref} className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
               <ArrowLeft className="h-4 w-4" />
               Back to login
             </Link>

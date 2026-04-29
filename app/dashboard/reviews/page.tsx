@@ -21,7 +21,7 @@ import { TopBar } from '@/components/top-bar'
 import { useAuth } from '@/lib/auth-context'
 import { api } from '@/lib/api'
 import type { Review, ErrorSeverity } from '@/lib/types'
-import { MAJOR_ERROR_CATEGORIES, MINOR_ERROR_CATEGORIES } from '@/lib/types'
+import { MAJOR_ERROR_CATEGORIES, MINOR_ERROR_CATEGORIES, isReviewerOrAbove } from '@/lib/types'
 
 type ReviewStatus = 'pending' | 'in-review' | 'approved' | 'rejected' | 'revision-requested' | 'escalated' | 'on-hold' | 'flagged'
 type ReviewDecision = 'approve' | 'reject' | 'request-rework' | 'escalate' | 'hold' | 'flag'
@@ -50,7 +50,7 @@ export default function ReviewsPage() {
   const [escalateReview, setEscalateReview] = useState<Review | null>(null)
   const [escalateComment, setEscalateComment] = useState('')
 
-  const isReviewer = user?.role === 'reviewer' || user?.role === 'admin'
+  const isReviewer = isReviewerOrAbove(user?.role ?? 'annotator')
 
   useEffect(() => {
     if (!user) return
@@ -131,21 +131,21 @@ export default function ReviewsPage() {
   }
 
   const statusColor = (s: ReviewStatus) => {
-    if (s === 'approved') return 'bg-success/10 text-success border-success/20'
-    if (s === 'rejected') return 'bg-destructive/10 text-destructive border-destructive/20'
+    if (s === 'approved')           return 'bg-success/10 text-success border-success/20'
+    if (s === 'rejected')           return 'bg-destructive/10 text-destructive border-destructive/20'
     if (s === 'revision-requested') return 'bg-warning/10 text-warning border-warning/20'
-    if (s === 'in-review') return 'bg-blue-500/10 text-blue-400 border-blue-500/20'
-    if (s === 'escalated') return 'bg-orange-500/10 text-orange-400 border-orange-500/20'
-    if (s === 'on-hold') return 'bg-purple-500/10 text-purple-400 border-purple-500/20'
-    if (s === 'flagged') return 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20'
+    if (s === 'in-review')          return 'bg-primary/10 text-primary border-primary/20'
+    if (s === 'escalated')          return 'bg-destructive/10 text-destructive border-destructive/20'
+    if (s === 'on-hold')            return 'bg-muted text-muted-foreground border-border'
+    if (s === 'flagged')            return 'bg-warning/10 text-warning border-warning/20'
     return 'bg-muted text-muted-foreground border-border'
   }
 
   const statusIcon = (s: ReviewStatus) => {
-    if (s === 'approved') return <CheckCircle className="h-3.5 w-3.5 text-success" />
-    if (s === 'rejected') return <XCircle className="h-3.5 w-3.5 text-destructive" />
+    if (s === 'approved')           return <CheckCircle className="h-3.5 w-3.5 text-success" />
+    if (s === 'rejected')           return <XCircle className="h-3.5 w-3.5 text-destructive" />
     if (s === 'revision-requested') return <AlertTriangle className="h-3.5 w-3.5 text-warning" />
-    if (s === 'in-review') return <Clock className="h-3.5 w-3.5 text-blue-400" />
+    if (s === 'in-review')          return <Clock className="h-3.5 w-3.5 text-primary" />
     return <Clock className="h-3.5 w-3.5 text-muted-foreground" />
   }
 
@@ -200,7 +200,7 @@ export default function ReviewsPage() {
                   onClick={() => { setDecideReview(review); setDecision('approve'); setErrorTags([]); setShowTagForm(false) }}>Decide</Button>
               )}
               {isReviewer && isInReview && review.reviewerId !== user?.id && (
-                <Badge variant="outline" className="text-[10px] bg-blue-500/10 text-blue-400 border-blue-500/20">
+                <Badge variant="outline" className="text-[10px] bg-primary/10 text-primary border-primary/20">
                   In Review
                 </Badge>
               )}
@@ -210,7 +210,7 @@ export default function ReviewsPage() {
                 <>
                   {/* Task in review — block and show badge */}
                   {isInReview ? (
-                    <Badge variant="outline" className="text-[10px] bg-blue-500/10 text-blue-400 border-blue-500/20">
+                    <Badge variant="outline" className="text-[10px] bg-primary/10 text-primary border-primary/20">
                       In Review
                     </Badge>
                   ) : (
@@ -229,7 +229,7 @@ export default function ReviewsPage() {
                             <Link href={`/dashboard/tasks/${review.taskId}`}>Revise</Link>
                           </Button>
                           <Button size="sm" variant="outline"
-                            className="h-7 text-xs gap-1 px-2.5 border-orange-500/30 text-orange-400 hover:bg-orange-500/10"
+                            className="h-7 text-xs gap-1 px-2.5 border-destructive/30 text-destructive hover:bg-destructive/10"
                             onClick={() => setEscalateReview(review)}>
                             <ArrowUpCircle className="h-3.5 w-3.5" />Escalate
                           </Button>
@@ -378,7 +378,7 @@ export default function ReviewsPage() {
                       <span key={i} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium border ${
                         tag.severity === 'major'
                           ? 'bg-destructive/10 text-destructive border-destructive/20'
-                          : 'bg-yellow-500/10 text-yellow-600 border-yellow-500/20'
+                          : 'bg-warning/10 text-warning border-warning/20'
                       }`}>
                         <span className="font-bold uppercase">{tag.severity[0]}</span>
                         {getCategoryLabel(tag.category)}
@@ -397,7 +397,7 @@ export default function ReviewsPage() {
                         <button key={sev} type="button"
                           className={`flex-1 text-xs py-1.5 rounded border capitalize transition-colors ${
                             tagSeverity === sev
-                              ? sev === 'major' ? 'bg-destructive/15 border-destructive/40 text-destructive' : 'bg-yellow-500/15 border-yellow-500/40 text-yellow-600'
+                              ? sev === 'major' ? 'bg-destructive/15 border-destructive/40 text-destructive' : 'bg-warning/15 border-warning/40 text-warning'
                               : 'border-border text-muted-foreground hover:border-muted-foreground'
                           }`}
                           onClick={() => { setTagSeverity(sev); setTagCategory('') }}>
@@ -468,7 +468,7 @@ export default function ReviewsPage() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <ArrowUpCircle className="h-5 w-5 text-orange-400" />Escalate Task
+              <ArrowUpCircle className="h-5 w-5 text-destructive" />Escalate Task
             </DialogTitle>
             <DialogDescription>
               Escalate "{escalateReview?.taskTitle}" — explain why you disagree with the review decision.
@@ -484,7 +484,7 @@ export default function ReviewsPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => { setEscalateReview(null); setEscalateComment('') }}>Cancel</Button>
             <Button onClick={handleEscalate} disabled={isSubmitting || !escalateComment.trim()}
-              className="bg-orange-500 hover:bg-orange-600 text-white">
+              className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
               <ArrowUpCircle className="h-4 w-4 mr-2" />{isSubmitting ? 'Escalating...' : 'Escalate'}
             </Button>
           </DialogFooter>

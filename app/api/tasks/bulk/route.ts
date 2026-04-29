@@ -2,17 +2,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import { connectToDatabase } from '@/lib/mongodb'
 import Task from '@/lib/models/Task'
 import Batch from '@/lib/models/Batch'
+import { requireTenant, isClientAdmin, isValidObjectId } from '@/lib/tenant'
 
 // POST /api/tasks/bulk
-// Body: {
-//   batchId: string,
-//   tasks: Array<{ title, externalUrl, description?, estimatedDuration?, priority?, difficulty?, languageTags? }>,
-//   metadata: { priority?, difficulty?, languageTags?, sla?, estimatedDuration? }   <- applied to all unless overridden
-// }
 export async function POST(req: NextRequest) {
   try {
-    const role = req.headers.get('x-user-role')
-    if (role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    const ctx = requireTenant(req)
+    if (ctx instanceof NextResponse) return ctx
+    if (!isClientAdmin(ctx.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
     const body = await req.json()
     const { batchId, tasks, metadata = {} } = body
@@ -23,13 +20,13 @@ export async function POST(req: NextRequest) {
     }
 
     await connectToDatabase()
-    const batch = await Batch.findById(batchId)
+    const bf = isValidObjectId(ctx.tenantId) ? { tenantId: ctx.tenantId } : {}
+    const batch = await Batch.findOne({ _id: batchId, ...bf })
     if (!batch) return NextResponse.json({ error: 'Batch not found' }, { status: 404 })
 
     const created: string[] = []
     const errors: { index: number; error: string }[] = []
 
-    // Normalise global metadata
     const globalMeta: Record<string, unknown> = {}
     if (metadata.priority != null)        globalMeta.priority = Number(metadata.priority)
     if (metadata.difficulty)              globalMeta.difficulty = metadata.difficulty
@@ -46,28 +43,25 @@ export async function POST(req: NextRequest) {
       if (!raw.title) { errors.push({ index: i, error: 'Missing required field: title' }); continue }
 
       try {
-        // Per-task fields override global metadata
         const taskDoc: Record<string, unknown> = {
+          tenantId:          ctx.tenantId,
+          projectId:         batch.projectId,
           batchId:           batch._id,
           batchTitle:        batch.title,
           workflowId:        batch.workflowId,
           workflowName:      batch.workflowName,
           taskType:          batch.taskType,
           status:            'unclaimed',
-          // Global metadata defaults
           priority:          batch.priority,
           estimatedDuration: 30,
           ...globalMeta,
-          // Per-task overrides (per-task languageTags normalised)
           ...raw,
         }
 
-        // Normalise per-task languageTags if present as a string
         if (typeof taskDoc.languageTags === 'string') {
           taskDoc.languageTags = (taskDoc.languageTags as string)
             .split(',').map((t: string) => t.trim()).filter(Boolean)
         }
-        // Normalise numeric fields
         if (taskDoc.priority) taskDoc.priority = Number(taskDoc.priority)
         if (taskDoc.estimatedDuration) taskDoc.estimatedDuration = Number(taskDoc.estimatedDuration)
 
@@ -78,7 +72,6 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Increment batch.tasksTotal by number of successfully created tasks
     if (created.length > 0) {
       await Batch.findByIdAndUpdate(batchId, { $inc: { tasksTotal: created.length } })
     }

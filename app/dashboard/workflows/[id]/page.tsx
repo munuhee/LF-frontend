@@ -15,6 +15,7 @@ import { TopBar } from '@/components/top-bar'
 import { useAuth } from '@/lib/auth-context'
 import { api } from '@/lib/api'
 import type { Batch } from '@/lib/types'
+import { isClientAdmin } from '@/lib/types'
 
 interface WorkflowDetail {
   id: string
@@ -180,7 +181,7 @@ export default function WorkflowDetailPage({ params }: { params: Promise<{ id: s
   )
   if (!workflow) return null
 
-  const isAdmin = user?.role === 'admin'
+  const isAdmin = isClientAdmin(user?.role ?? 'annotator')
 
   return (
     <>

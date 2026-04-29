@@ -3,51 +3,32 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Eye, EyeOff, Mail, Lock, AlertCircle } from 'lucide-react'
+import { ArrowRight, Building2, AlertCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
-import { Checkbox } from '@/components/ui/checkbox'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { InputGroup, InputGroupInput, InputGroupAddon } from '@/components/ui/input-group'
-import { api } from '@/lib/api'
 
-const TEST_ACCOUNTS = [
-  { label: 'Annotator — Wanjiru Kamau',   email: 'wanjiru.kamau@labelforge.ai',   password: 'annotator123!' },
-  { label: 'Annotator — Odhiambo Otieno', email: 'odhiambo.otieno@labelforge.ai', password: 'annotator123!' },
-  { label: 'Annotator — Njeri Mwangi',    email: 'njeri.mwangi@labelforge.ai',    password: 'annotator123!' },
-  { label: 'Annotator — Kipchoge Ruto',   email: 'kipchoge.ruto@labelforge.ai',   password: 'annotator123!' },
-  { label: 'Reviewer — Amina Hassan',     email: 'amina.hassan@labelforge.ai',    password: 'reviewer123!'  },
-  { label: 'Reviewer — Mutua Kibet',      email: 'mutua.kibet@labelforge.ai',     password: 'reviewer123!'  },
-  { label: 'Admin — Zawadi Ndungu',       email: 'zawadi.ndungu@labelforge.ai',   password: 'admin123!'     },
-]
-
-export default function LoginPage() {
+export default function WorkspaceEntryPage() {
   const router = useRouter()
-  const [showPassword, setShowPassword] = useState(false)
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [isLoading, setIsLoading] = useState(false)
+  const [slug, setSlug] = useState('')
   const [error, setError] = useState('')
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleContinue = (e: React.FormEvent) => {
     e.preventDefault()
-    setIsLoading(true)
-    setError('')
-    try {
-      const data = await api.auth.login(email, password)
-      sessionStorage.setItem('pendingAuthEmail', email)
-      if (data.testOtp) sessionStorage.setItem('testOtp', data.testOtp)
-      router.push('/verify-otp')
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Login failed')
-    } finally {
-      setIsLoading(false)
+    const clean = slug.trim().toLowerCase().replace(/\s+/g, '-')
+    if (!clean) { setError('Please enter your workspace name.'); return }
+    if (!/^[a-z0-9-]+$/.test(clean)) {
+      setError('Workspace names can only contain letters, numbers, and hyphens.')
+      return
     }
+    router.push(`/${clean}/login`)
   }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="w-full max-w-md">
+        {/* Logo */}
         <div className="flex items-center justify-center gap-3 mb-8">
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary">
             <span className="text-2xl font-bold text-primary-foreground">L</span>
@@ -60,11 +41,11 @@ export default function LoginPage() {
 
         <Card className="border-border bg-card">
           <CardHeader className="text-center">
-            <CardTitle className="text-xl">Welcome Back</CardTitle>
-            <CardDescription>Sign in to access your workspace</CardDescription>
+            <CardTitle className="text-xl">Welcome to LabelForge</CardTitle>
+            <CardDescription>Enter your workspace slug to sign in</CardDescription>
           </CardHeader>
-          <CardContent>
-            <form onSubmit={handleLogin}>
+          <CardContent className="space-y-4">
+            <form onSubmit={handleContinue}>
               <FieldGroup className="gap-5">
                 {error && (
                   <div className="flex items-start gap-2 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
@@ -74,82 +55,59 @@ export default function LoginPage() {
                 )}
 
                 <Field>
-                  <FieldLabel htmlFor="email">Email Address</FieldLabel>
+                  <FieldLabel htmlFor="slug">Workspace Slug</FieldLabel>
                   <InputGroup>
-                    <InputGroupAddon><Mail className="h-4 w-4" /></InputGroupAddon>
+                    <InputGroupAddon><Building2 className="h-4 w-4" /></InputGroupAddon>
                     <InputGroupInput
-                      id="email" type="email" placeholder="you@company.com"
-                      value={email} onChange={e => setEmail(e.target.value)} required
+                      id="slug"
+                      type="text"
+                      placeholder="Enter your workspace slug"
+                      value={slug}
+                      onChange={e => { setSlug(e.target.value); setError('') }}
+                      autoFocus
+                      required
                     />
                   </InputGroup>
                 </Field>
 
-                <Field>
-                  <div className="flex items-center justify-between">
-                    <FieldLabel htmlFor="password">Password</FieldLabel>
-                  </div>
-                  <InputGroup>
-                    <InputGroupAddon><Lock className="h-4 w-4" /></InputGroupAddon>
-                    <InputGroupInput
-                      id="password" type={showPassword ? 'text' : 'password'}
-                      placeholder="Enter your password"
-                      value={password} onChange={e => setPassword(e.target.value)} required
-                    />
-                    <InputGroupAddon className="cursor-pointer">
-                      <button type="button" onClick={() => setShowPassword(!showPassword)} className="focus:outline-none">
-                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </button>
-                    </InputGroupAddon>
-                  </InputGroup>
-                </Field>
-
-                <div className="flex items-center space-x-2">
-                  <Checkbox id="remember" />
-                  <label htmlFor="remember" className="text-sm text-muted-foreground cursor-pointer">
-                    Remember me for 30 days
-                  </label>
-                </div>
-
-                <Button type="submit" className="w-full" disabled={isLoading}>
-                  {isLoading ? (
-                    <span className="flex items-center gap-2">
-                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
-                      Signing in...
-                    </span>
-                  ) : 'Sign In'}
+                <Button type="submit" className="w-full gap-2">
+                  Continue <ArrowRight className="h-4 w-4" />
                 </Button>
               </FieldGroup>
             </form>
-          </CardContent>
-          <CardFooter className="flex flex-col gap-4">
-            <div className="relative w-full">
+
+            <div className="relative">
               <div className="absolute inset-0 flex items-center">
                 <span className="w-full border-t border-border" />
               </div>
-              <div className="relative flex justify-center text-xs">
-                <span className="bg-card px-2 text-muted-foreground">Secure login with 2FA</span>
+            </div>
+
+            {/* Quick workspace shortcuts */}
+            <div className="w-full p-3 rounded-lg bg-secondary/50 border border-border space-y-2">
+              <p className="text-xs font-medium text-foreground">Test Workspaces</p>
+              <div className="flex gap-2">
+                {['acme-corp', 'techlab'].map(w => (
+                  <button
+                    key={w}
+                    type="button"
+                    onClick={() => router.push(`/${w}/login`)}
+                    className="flex-1 text-xs px-2 py-1.5 rounded-md border border-border bg-background hover:bg-secondary hover:border-primary/40 transition-colors text-foreground font-mono"
+                  >
+                    {w}
+                  </button>
+                ))}
               </div>
             </div>
-            <div className="w-full p-3 rounded-lg bg-secondary/50 border border-border space-y-2">
-              <p className="text-xs font-medium text-foreground">Quick Sign-in (Test Accounts)</p>
-              <select
-                defaultValue=""
-                className="w-full text-xs bg-background border border-border rounded-md px-2 py-1.5 text-foreground focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer"
-                onChange={e => {
-                  const account = TEST_ACCOUNTS.find(a => a.email === e.target.value)
-                  if (account) { setEmail(account.email); setPassword(account.password) }
-                }}
+
+            <div className="text-center">
+              <Link
+                href="/login"
+                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
               >
-                <option value="" disabled>Select a test account...</option>
-                {TEST_ACCOUNTS.map(a => (
-                  <option key={a.email} value={a.email}>{a.label}</option>
-                ))}
-              </select>
-              <p className="text-[10px] text-muted-foreground italic">
-                Run <code className="font-mono bg-secondary px-1 rounded">POST /api/seed</code> first to populate the database.
-              </p>
+                System Admin login →
+              </Link>
             </div>
-          </CardFooter>
+          </CardContent>
         </Card>
       </div>
     </div>

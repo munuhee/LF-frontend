@@ -2,254 +2,453 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { ArrowRight, Play, Clock, CheckCircle2, AlertCircle, Users, TrendingUp, BarChart3, Workflow } from 'lucide-react'
+import {
+  ArrowRight, CheckCircle2, AlertCircle, Users, TrendingUp,
+  BarChart3, Workflow, Building2, ShieldCheck, Globe,
+  RefreshCw, HelpCircle,
+} from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { TopBar } from '@/components/top-bar'
-import { PriorityBadge } from '@/components/status-badge'
 import { useAuth } from '@/lib/auth-context'
 import { api } from '@/lib/api'
-import type { Batch, Review } from '@/lib/types'
+import type { Review, Client, Task } from '@/lib/types'
 
 export default function DashboardPage() {
   const { user } = useAuth()
-
   if (!user) return null
-  if (user.role === 'annotator') return <AnnotatorAssignments />
-  if (user.role === 'reviewer') return <ReviewerAssignments />
+  if (user.role === 'super_admin') return <SuperAdminDashboard />
+  if (['annotator', 'reviewer', 'reviewer_annotator'].includes(user.role)) return <FieldWorkerDashboard />
   return <AdminDashboard />
 }
 
-// ─── Annotator ───────────────────────────────────────────────────────────────
+// ─── Field Worker — centered task-focused interface ──────────────────────────
 
-function AnnotatorAssignments() {
+function timeAgo(dateStr?: string): string {
+  if (!dateStr) return ''
+  const diff = Date.now() - new Date(dateStr).getTime()
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins} minute${mins !== 1 ? 's' : ''} ago`
+  const hours = Math.floor(mins / 60)
+  if (hours < 24) return `${hours} hour${hours !== 1 ? 's' : ''} ago`
+  const days = Math.floor(hours / 24)
+  return `${days} day${days !== 1 ? 's' : ''} ago`
+}
+
+function FieldWorkerDashboard() {
   const { user } = useAuth()
-  const [batches, setBatches] = useState<Batch[]>([])
-  const [activeTasks, setActiveTasks] = useState<{ id: string; title: string; status: string }[]>([])
+  const isCombined = user?.role === 'reviewer_annotator'
+  const [mode, setMode] = useState<'annotate' | 'review'>(user?.role === 'reviewer' ? 'review' : 'annotate')
+  const [allTasks, setAllTasks] = useState<Task[]>([])
+  const [allReviews, setAllReviews] = useState<Review[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [isClaiming, setIsClaiming] = useState(false)
+  const [noTasks, setNoTasks] = useState(false)
 
-  useEffect(() => {
-    Promise.all([api.batches.list(), api.tasks.list({ mine: 'true' })])
-      .then(([b, t]) => {
-        setBatches(b)
-        setActiveTasks(
-          t.filter((tk: { status: string }) =>
-            ['in-progress', 'paused', 'revision-requested'].includes(tk.status)
-          )
-        )
-      })
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : 'Failed to load'))
-      .finally(() => setIsLoading(false))
-  }, [])
+  const basePath = user?.clientSlug ? `/${user.clientSlug}/dashboard` : '/dashboard'
 
-  const handleStart = async (batchId: string) => {
+  const showAnnotate = mode === 'annotate' || user?.role === 'annotator'
+  const showReview   = mode === 'review'   || user?.role === 'reviewer'
+
+  useEffect(() => { if (user) load() }, [user, mode])  // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function load() {
+    setIsLoading(true)
+    setNoTasks(false)
     try {
-      const tasks = await api.tasks.list({ batchId, status: 'unclaimed' })
-      if (!tasks.length) { alert('No unclaimed tasks in this batch.'); return }
-      const task = tasks[Math.floor(Math.random() * tasks.length)]
-      await api.tasks.action(task.id, 'claim')
-      window.location.href = `/dashboard/tasks/${task.id}`
-    } catch (e: unknown) { alert(e instanceof Error ? e.message : 'Error') }
+      const taskParam = user?.role === 'reviewer_annotator' ? { viewAs: 'annotator' } : { mine: 'true' }
+      const [fetchedTasks, fetchedReviews] = await Promise.all([
+        api.tasks.list(taskParam),
+        api.reviews.list(),
+      ])
+      setAllTasks(fetchedTasks as Task[])
+      setAllReviews(fetchedReviews as Review[])
+    } catch { /* noop */ }
+    finally { setIsLoading(false) }
   }
 
-  const available = batches.filter(b => b.tasksTotal > 0 && (b.status === 'available' || b.tasksTotal > b.tasksCompleted))
-  const hasRework = activeTasks.some(t => t.status === 'revision-requested')
-  const hasInProgress = activeTasks.some(t => ['in-progress', 'paused'].includes(t.status))
-  // Block claiming a new task if they already have one active or have rework pending
-  const claimBlocked = activeTasks.length > 0
-  const blockReason = hasRework
-    ? 'Complete your rework task before starting a new one.'
-    : hasInProgress
-      ? 'Finish your current task before starting a new one.'
-      : ''
+  // ── Task groupings ───────────────────────────────────────────────────────────
+  const reworkTasks  = allTasks.filter(t => t.status === 'revision-requested')
+  const activeTasks  = allTasks.filter(t => ['in-progress', 'paused'].includes(t.status))
+
+  // ── Review groupings ─────────────────────────────────────────────────────────
+  const myReviews          = allReviews.filter(r => r.reviewerId === user?.id)
+  const myActiveReviews    = myReviews.filter(r => r.status === 'in-review')
+  const myCompletedReviews = myReviews.filter(r => ['approved', 'rejected', 'revision-requested'].includes(r.status))
+  const pendingQueue       = allReviews.filter(r => r.status === 'pending')
+
+  // ── Annotator stats ──────────────────────────────────────────────────────────
+  const aCompleted  = allTasks.filter(t => ['approved', 'data-ready'].includes(t.status)).length
+  const aActive     = allTasks.filter(t => ['in-progress', 'paused'].includes(t.status)).length
+  const aSubmitted  = allTasks.filter(t => ['submitted', 'in-review'].includes(t.status)).length
+  const aRework     = allTasks.filter(t => t.status === 'revision-requested').length
+  const aScores     = allTasks.filter(t => t.qualityScore).map(t => t.qualityScore as number)
+  const aAvgScore   = aScores.length ? Math.round(aScores.reduce((s, v) => s + v, 0) / aScores.length) : null
+  const aReviewed   = allTasks.filter(t => ['approved', 'rejected', 'revision-requested', 'data-ready'].includes(t.status))
+  const aApproval   = aReviewed.length
+    ? Math.round(aReviewed.filter(t => ['approved', 'data-ready'].includes(t.status)).length / aReviewed.length * 100)
+    : null
+
+  // ── Reviewer stats ───────────────────────────────────────────────────────────
+  const rDone        = myCompletedReviews.length
+  const rActive      = myActiveReviews.length
+  const rInQueue     = pendingQueue.length
+  const rApproved    = myCompletedReviews.filter(r => r.status === 'approved').length
+  const rRejected    = myCompletedReviews.filter(r => r.status === 'rejected').length
+  const rApprovalRate = myCompletedReviews.length
+    ? Math.round(rApproved / myCompletedReviews.length * 100)
+    : null
+
+  // ── Get task logic ───────────────────────────────────────────────────────────
+  const activeTask   = activeTasks[0]
+  const reworkTask   = reworkTasks[0]
+  const activeReview = myActiveReviews[0]
+
+  const btnLabel = isClaiming ? 'Claiming…'
+    : showAnnotate
+      ? activeTask ? 'Resume Task' : reworkTask ? 'Complete Rework' : 'Get New Task'
+      : activeReview ? 'Continue Review' : pendingQueue.length ? 'Start Next Review' : 'No Reviews'
+
+  async function handleGetTask() {
+    setIsClaiming(true)
+    setNoTasks(false)
+    try {
+      if (showAnnotate) {
+        if (activeTask) { window.location.href = `${basePath}/tasks/${activeTask.id}`; return }
+        if (reworkTask) { window.location.href = `${basePath}/tasks/${reworkTask.id}`; return }
+        const unclaimed = await api.tasks.list({ status: 'unclaimed' })
+        if (!unclaimed.length) { setNoTasks(true); return }
+        const pick = unclaimed[Math.floor(Math.random() * unclaimed.length)]
+        await api.tasks.action(pick.id, 'claim')
+        window.location.href = `${basePath}/tasks/${pick.id}`
+      } else {
+        if (activeReview) { window.location.href = `${basePath}/tasks/${activeReview.taskId}`; return }
+        if (!pendingQueue.length) { setNoTasks(true); return }
+        await api.reviews.claim(pendingQueue[0].id)
+        window.location.href = `${basePath}/tasks/${pendingQueue[0].taskId}`
+      }
+    } catch (e: unknown) { alert(e instanceof Error ? e.message : 'Error') }
+    finally { setIsClaiming(false) }
+  }
 
   return (
-    <>
-      <TopBar title="Assignments" subtitle={`Welcome back, ${user?.name.split(' ')[0]}`} />
-      <main className="flex-1 overflow-y-auto p-4 lg:p-6 space-y-4">
-        {/* Active task banner */}
-        {claimBlocked && (
-          <div className={`flex items-start gap-3 p-4 rounded-lg border ${hasRework ? 'bg-warning/10 border-warning/30' : 'bg-blue-500/10 border-blue-500/30'}`}>
-            <AlertCircle className={`h-5 w-5 shrink-0 mt-0.5 ${hasRework ? 'text-warning' : 'text-blue-400'}`} />
-            <div className="flex-1">
-              <p className={`text-sm font-semibold ${hasRework ? 'text-warning' : 'text-blue-400'}`}>
-                {hasRework ? 'Rework required — claiming disabled' : 'Task in progress — claiming disabled'}
-              </p>
-              <p className="text-xs text-muted-foreground mt-0.5">{blockReason}</p>
-            </div>
-            <ArrowRight className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0 cursor-pointer"
-              onClick={() => window.location.href = '/dashboard/work'} />
-          </div>
-        )}
+    <main className="flex-1 overflow-y-auto">
+      <div className="max-w-2xl mx-auto px-4 py-8 space-y-8">
 
-        {isLoading ? (
-          <div className="flex items-center justify-center py-12 text-muted-foreground">Loading...</div>
-        ) : error ? (
-          <div className="flex items-center justify-center py-12 text-destructive text-sm">{error}</div>
-        ) : available.length === 0 ? (
-          <Card className="border-border bg-card">
-            <CardContent className="flex flex-col items-center justify-center py-16">
-              <CheckCircle2 className="h-10 w-10 text-muted-foreground mb-3" />
-              <p className="text-muted-foreground font-medium">No assignments yet</p>
-              <p className="text-sm text-muted-foreground mt-1">Your admin will assign you to a workflow.</p>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="space-y-3">
-            {available.map(batch => {
-              const remaining = batch.tasksTotal - batch.tasksCompleted
-              return (
-                <Card key={batch.id} className={`border-border bg-card ${claimBlocked ? 'opacity-60' : ''}`}>
-                  <CardContent className="p-4">
-                    <div className="flex items-start gap-4">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1 flex-wrap">
-                          <h3 className="font-semibold text-sm text-foreground">{batch.title}</h3>
-                          <PriorityBadge priority={batch.priority} />
-                          {batch.deadline && (
-                            <Badge variant="outline" className="text-[10px] text-warning border-warning/30">
-                              Due {new Date(batch.deadline).toLocaleDateString()}
-                            </Badge>
-                          )}
-                        </div>
-                        <p className="text-xs text-muted-foreground mb-2 line-clamp-1">{batch.description}</p>
-                        <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                          <span>{remaining} tasks remaining</span>
-                        </div>
-                      </div>
-                      <Button size="sm" className="gap-1.5 shrink-0" disabled={claimBlocked}
-                        onClick={() => handleStart(batch.id)}
-                        title={claimBlocked ? blockReason : undefined}>
-                        <Play className="h-3.5 w-3.5" />Start
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              )
-            })}
+          {/* Page title */}
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">My Tasks</h1>
+            <p className="text-sm text-muted-foreground mt-0.5">Your current work</p>
           </div>
-        )}
-      </main>
-    </>
+
+          {/* Mode tabs — combined role only */}
+          {isCombined && (
+            <div className="flex gap-1 p-1 bg-secondary rounded-lg w-fit">
+              {(['annotate', 'review'] as const).map(m => (
+                <button
+                  key={m}
+                  onClick={() => { setMode(m); setNoTasks(false) }}
+                  className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${
+                    mode === m ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {m === 'annotate' ? 'Annotator' : 'Reviewer'}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {isLoading ? (
+            <div className="space-y-6">
+              {[120, 80, 220].map((h, i) => (
+                <div key={i} className="rounded-lg bg-muted animate-pulse" style={{ height: h }} />
+              ))}
+            </div>
+          ) : (
+            <>
+              {/* ── Re-requested section (annotator only) ── */}
+              {showAnnotate && reworkTasks.length > 0 && (
+                <section className="space-y-3">
+                  <div>
+                    <h2 className="text-base font-semibold text-destructive">Re-requested ({reworkTasks.length})</h2>
+                    <p className="text-sm text-muted-foreground">Reviewers have requested changes to these tasks.</p>
+                  </div>
+                  <div className="space-y-2">
+                    {reworkTasks.map(t => <FieldTaskCard key={t.id} task={t} basePath={basePath} />)}
+                  </div>
+                </section>
+              )}
+
+              {/* ── Current tasks / Review queue ── */}
+              <section className="space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h2 className="text-base font-semibold">{showAnnotate ? 'Current Tasks' : 'Review Queue'}</h2>
+                    <p className="text-sm text-muted-foreground">
+                      {showAnnotate
+                        ? 'Continue your work or pick up something new.'
+                        : `${pendingQueue.length} task${pendingQueue.length !== 1 ? 's' : ''} waiting for review.`}
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    className="shrink-0"
+                    onClick={handleGetTask}
+                    disabled={isClaiming || (showReview && !activeReview && !pendingQueue.length)}
+                  >
+                    {isClaiming && <RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" />}
+                    {btnLabel}
+                  </Button>
+                </div>
+
+                {showAnnotate ? (
+                  activeTasks.length > 0
+                    ? <div className="space-y-2">{activeTasks.map(t => <FieldTaskCard key={t.id} task={t} basePath={basePath} />)}</div>
+                    : <div className="rounded-lg border border-border bg-card px-6 py-10 text-center">
+                        <p className="text-sm text-warning">No tasks right now.</p>
+                      </div>
+                ) : (
+                  myActiveReviews.length > 0
+                    ? <div className="space-y-2">{myActiveReviews.map(r => <FieldReviewCard key={r.id} review={r} basePath={basePath} />)}</div>
+                    : <div className="rounded-lg border border-border bg-card px-6 py-10 text-center">
+                        <p className="text-sm text-muted-foreground">
+                          {pendingQueue.length > 0
+                            ? `${pendingQueue.length} task${pendingQueue.length !== 1 ? 's' : ''} in queue — click "Start Next Review" to begin.`
+                            : 'No reviews in queue right now.'}
+                        </p>
+                      </div>
+                )}
+
+                {noTasks && (
+                  <p className="text-center text-xs text-muted-foreground">
+                    {showAnnotate ? 'No unclaimed tasks available right now.' : 'No reviews in the queue right now.'}
+                  </p>
+                )}
+              </section>
+
+              {/* ── Stats ── */}
+              <section className="space-y-3">
+                <div>
+                  <h2 className="text-base font-semibold">Your stats</h2>
+                  <p className="text-sm text-muted-foreground">A snapshot of your activity in this workspace.</p>
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  {showAnnotate ? (
+                    <>
+                      <StatCard label="Completed"    value={aCompleted} />
+                      <StatCard label="Active"        value={aActive} />
+                      <StatCard label="Pending Review" value={aSubmitted} />
+                      <StatCard label="Needs Rework"  value={aRework} />
+                      <StatCard label="Avg Score"     value={aAvgScore !== null ? `${aAvgScore}%` : '—'} />
+                      <StatCard label="Approval Rate" value={aApproval !== null ? `${aApproval}%` : '—'} />
+                    </>
+                  ) : (
+                    <>
+                      <StatCard label="Reviewed"     value={rDone} />
+                      <StatCard label="Active"        value={rActive} />
+                      <StatCard label="In Queue"      value={rInQueue} />
+                      <StatCard label="Approved"      value={rApproved} />
+                      <StatCard label="Rejected"      value={rRejected} />
+                      <StatCard label="Approval Rate" value={rApprovalRate !== null ? `${rApprovalRate}%` : '—'} />
+                    </>
+                  )}
+                </div>
+              </section>
+            </>
+          )}
+
+      </div>
+    </main>
   )
 }
 
-// ─── Reviewer ────────────────────────────────────────────────────────────────
+function FieldTaskCard({ task, basePath }: { task: Task; basePath: string }) {
+  const lastActivity = task.activityLog?.[task.activityLog.length - 1]
+  const when = timeAgo(lastActivity?.timestamp ?? task.submittedAt ?? task.createdAt)
 
-function ReviewerAssignments() {
-  const { user } = useAuth()
-  const [reviews, setReviews] = useState<Review[]>([])
+  const statusLine =
+    task.status === 'revision-requested' ? `Re-requested with feedback${when ? ` ${when}` : ''}`
+    : task.status === 'in-progress'       ? 'Currently in progress'
+    : task.status === 'paused'            ? 'Paused'
+    : task.status
+
+  const typeLabel = task.taskType.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+
+  return (
+    <Link href={`${basePath}/tasks/${task.id}`}>
+      <div className="rounded-lg border border-border bg-card p-4 hover:bg-secondary/40 transition-colors cursor-pointer">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium">{task.title}</p>
+            <p className="text-[11px] text-muted-foreground font-mono mt-0.5 truncate">{task.id}</p>
+            <p className="text-xs text-muted-foreground mt-1">{statusLine}</p>
+            {task.status === 'revision-requested' && task.feedback && (
+              <p className="text-xs text-muted-foreground mt-1.5 pl-2 border-l-2 border-border truncate">
+                ↳ {task.feedback}
+              </p>
+            )}
+          </div>
+          <span className="shrink-0 inline-flex items-center rounded-full bg-foreground px-2.5 py-0.5 text-[10px] font-medium text-background">
+            {typeLabel}
+          </span>
+        </div>
+      </div>
+    </Link>
+  )
+}
+
+function FieldReviewCard({ review, basePath }: { review: Review; basePath: string }) {
+  return (
+    <Link href={`${basePath}/tasks/${review.taskId}`}>
+      <div className="rounded-lg border border-border bg-card p-4 hover:bg-secondary/40 transition-colors cursor-pointer">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium">{review.taskTitle}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">By {review.annotatorName} · {review.batchTitle}</p>
+          </div>
+          <span className="shrink-0 inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-[10px] font-medium text-primary">
+            In Review
+          </span>
+        </div>
+      </div>
+    </Link>
+  )
+}
+
+function StatCard({ label, sub, value }: { label: string; sub?: string; value: string | number }) {
+  return (
+    <div className="rounded-lg border border-border bg-card p-4">
+      <div className="flex items-start gap-1 mb-2">
+        <div className="flex-1 min-w-0">
+          <p className="text-xs text-muted-foreground leading-tight">{label}</p>
+          {sub && <p className="text-[10px] text-muted-foreground leading-tight">{sub}</p>}
+        </div>
+        <HelpCircle className="h-3 w-3 text-muted-foreground shrink-0 mt-0.5" />
+      </div>
+      <p className="text-2xl font-bold tracking-tight">{value}</p>
+    </div>
+  )
+}
+
+// ─── Super Admin ─────────────────────────────────────────────────────────────
+
+function SuperAdminDashboard() {
+  const [clients, setClients] = useState<Client[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    api.reviews.list()
-      .then(rv => setReviews(rv))
+    api.clients.list()
+      .then(setClients)
       .catch((e: unknown) => setError(e instanceof Error ? e.message : 'Failed to load'))
       .finally(() => setIsLoading(false))
   }, [])
 
-  const pending = reviews.filter(r => r.status === 'pending')
-  const myActive = reviews.filter(r => r.status === 'in-review' && r.reviewerId === user?.id)
-  // Block claiming when reviewer already has one active review
-  const claimBlocked = myActive.length >= 1
+  const active = clients.filter(c => c.isActive).length
+  const plans  = clients.reduce<Record<string, number>>((acc, c) => { acc[c.plan] = (acc[c.plan] ?? 0) + 1; return acc }, {})
 
-  const handleClaim = async (reviewId: string) => {
-    try {
-      await api.reviews.claim(reviewId)
-      window.location.href = '/dashboard/work'
-    } catch (e: unknown) { alert(e instanceof Error ? e.message : 'Error') }
+  const summaryCards = [
+    { label: 'Total Workspaces',  value: clients.length,    icon: Building2,  cls: 'bg-primary/10 text-primary'     },
+    { label: 'Active Workspaces', value: active,             icon: Globe,      cls: 'bg-success/10 text-success'     },
+    { label: 'Pro Plan',          value: plans.pro ?? 0,     icon: ShieldCheck, cls: 'bg-warning/10 text-warning'    },
+    { label: 'Starter Plan',      value: plans.starter ?? 0, icon: Users,      cls: 'bg-muted text-muted-foreground' },
+  ]
+
+  const planCls: Record<string, string> = {
+    enterprise: 'bg-destructive/10 text-destructive border-destructive/20',
+    pro:        'bg-warning/10 text-warning border-warning/20',
+    starter:    'bg-muted text-muted-foreground border-border',
   }
 
   return (
     <>
-      <TopBar title="Assignments" subtitle={`Welcome back, ${user?.name.split(' ')[0]}`} />
-      <main className="flex-1 overflow-y-auto p-4 lg:p-6 space-y-4">
-        {/* Active review banner */}
-        {claimBlocked && (
-          <div className="flex items-start gap-3 p-4 rounded-lg bg-blue-500/10 border border-blue-500/30">
-            <Clock className="h-5 w-5 text-blue-400 shrink-0 mt-0.5" />
-            <div>
-              <p className="text-sm font-semibold text-blue-400">Review in progress — claiming disabled</p>
-              <p className="text-xs text-muted-foreground mt-0.5">Complete your active review before claiming another.</p>
-            </div>
-          </div>
-        )}
-
+      <TopBar title="System Overview" subtitle="All workspaces across the platform" />
+      <main className="flex-1 overflow-y-auto p-4 lg:p-6 space-y-6">
         {isLoading ? (
           <div className="flex items-center justify-center py-12 text-muted-foreground">Loading...</div>
         ) : error ? (
-          <div className="flex items-center justify-center py-12 text-destructive text-sm">{error}</div>
+          <div className="text-destructive text-sm text-center py-12">{error}</div>
         ) : (
-          <div className="space-y-6">
-            {/* My Active Reviews */}
-            {myActive.length > 0 && (
-              <div>
-                <h2 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
-                  <Clock className="h-4 w-4 text-blue-400" />In Progress ({myActive.length})
-                </h2>
-                <div className="space-y-2">
-                  {myActive.map(r => (
-                    <Card key={r.id} className="border-border bg-card border-l-2 border-l-blue-400">
-                      <CardContent className="p-3 flex items-center justify-between">
-                        <div>
-                          <p className="text-sm font-medium">{r.taskTitle}</p>
-                          <p className="text-xs text-muted-foreground">{r.batchTitle}</p>
-                        </div>
-                        <Button size="sm" className="gap-1.5 h-7 text-xs" asChild>
-                          <Link href={`/dashboard/tasks/${r.taskId}`}><Play className="h-3.5 w-3.5" />Continue</Link>
-                        </Button>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Pending Queue */}
+          <>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {summaryCards.map(c => (
+                <Card key={c.label} className="border-border bg-card">
+                  <CardContent className="p-3">
+                    <div className="flex items-center gap-2">
+                      <div className={`p-1.5 rounded-lg ${c.cls}`}><c.icon className="h-4 w-4" /></div>
+                      <div>
+                        <p className="text-xl font-bold">{c.value}</p>
+                        <p className="text-[10px] text-muted-foreground">{c.label}</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" className="gap-1.5 text-xs" asChild>
+                <Link href="/dashboard/admin"><Building2 className="h-3.5 w-3.5" />Manage Workspaces</Link>
+              </Button>
+              <Button size="sm" variant="outline" className="gap-1.5 text-xs" asChild>
+                <Link href="/dashboard/team"><Users className="h-3.5 w-3.5" />All Users</Link>
+              </Button>
+            </div>
             <div>
-              <h2 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
-                <AlertCircle className="h-4 w-4 text-warning" />Queue ({pending.length})
-              </h2>
-              {pending.length === 0 ? (
+              <h2 className="text-sm font-semibold mb-3">All Workspaces</h2>
+              {clients.length === 0 ? (
                 <Card className="border-border bg-card">
-                  <CardContent className="flex items-center justify-center py-10">
-                    <p className="text-sm text-muted-foreground">No reviews pending</p>
+                  <CardContent className="flex items-center justify-center py-12">
+                    <p className="text-sm text-muted-foreground">No workspaces yet. Create one in Manage Workspaces.</p>
                   </CardContent>
                 </Card>
               ) : (
                 <div className="space-y-2">
-                  {pending.map(r => (
-                    <Card key={r.id} className={`border-border bg-card ${claimBlocked ? 'opacity-60' : ''}`}>
-                      <CardContent className="p-3 flex items-center justify-between">
-                        <div>
-                          <p className="text-sm font-medium">{r.taskTitle}</p>
-                          <p className="text-xs text-muted-foreground">{r.batchTitle} · By {r.annotatorName}</p>
-                          <p className="text-[10px] text-muted-foreground">{new Date(r.submittedAt).toLocaleDateString()}</p>
+                  {clients.map(client => (
+                    <Card key={client.id} className="border-border bg-card">
+                      <CardContent className="p-4">
+                        <div className="flex items-center justify-between gap-4">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary text-sm font-bold shrink-0">
+                              {client.name.charAt(0).toUpperCase()}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <p className="text-sm font-medium">{client.name}</p>
+                                <Badge variant="outline" className={`text-[10px] ${planCls[client.plan]}`}>{client.plan}</Badge>
+                                {!client.isActive && <Badge variant="outline" className="text-[10px] text-muted-foreground">Inactive</Badge>}
+                              </div>
+                              <p className="text-xs text-muted-foreground font-mono">{client.slug}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <Button size="sm" variant="outline" className="text-xs h-7 gap-1" asChild>
+                              <Link href={`/${client.slug}/login`} target="_blank"><Globe className="h-3 w-3" />Login</Link>
+                            </Button>
+                            <Button size="sm" variant="ghost" className="text-xs h-7 gap-1" asChild>
+                              <Link href="/dashboard/admin"><ShieldCheck className="h-3 w-3" />Manage</Link>
+                            </Button>
+                          </div>
                         </div>
-                        <Button size="sm" variant="outline" className="gap-1.5 h-7 text-xs"
-                          disabled={claimBlocked} onClick={() => handleClaim(r.id)}
-                          title={claimBlocked ? 'Complete your active review first' : undefined}>
-                          <Play className="h-3.5 w-3.5" />Start Review
-                        </Button>
                       </CardContent>
                     </Card>
                   ))}
                 </div>
               )}
             </div>
-          </div>
+          </>
         )}
       </main>
     </>
   )
 }
 
-// ─── Admin ───────────────────────────────────────────────────────────────────
+// ─── Admin (client_admin / qa_lead) ──────────────────────────────────────────
 
 function AdminDashboard() {
+  const { user } = useAuth()
+  const basePath = user?.clientSlug ? `/${user.clientSlug}/dashboard` : '/dashboard'
   const [analytics, setAnalytics] = useState<Record<string, unknown> | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -261,15 +460,15 @@ function AdminDashboard() {
       .finally(() => setIsLoading(false))
   }, [])
 
-  const summary = (analytics?.summary as Record<string, number>) || {}
+  const summary       = (analytics?.summary       as Record<string, number>)      || {}
   const annotatorPerf = (analytics?.annotatorPerformance as Record<string, unknown>[]) || []
-  const reviewerAct = (analytics?.reviewerActivity as Record<string, unknown>[]) || []
+  const reviewerAct   = (analytics?.reviewerActivity     as Record<string, unknown>[]) || []
 
   const summaryCards = [
-    { label: 'Total Annotators', value: summary.totalAnnotators ?? 0, icon: Users, color: 'text-primary', bg: 'bg-primary/10' },
-    { label: 'Tasks Completed', value: summary.completedTasks ?? 0, icon: CheckCircle2, color: 'text-success', bg: 'bg-success/10' },
-    { label: 'Pending Reviews', value: summary.pendingReviews ?? 0, icon: AlertCircle, color: 'text-warning', bg: 'bg-warning/10' },
-    { label: 'Active Tasks', value: summary.activeTasks ?? 0, icon: TrendingUp, color: 'text-blue-400', bg: 'bg-blue-500/10' },
+    { label: 'Total Annotators', value: summary.totalAnnotators ?? 0, icon: Users,       cls: 'bg-primary/10 text-primary'     },
+    { label: 'Tasks Completed',  value: summary.completedTasks  ?? 0, icon: CheckCircle2, cls: 'bg-success/10 text-success'     },
+    { label: 'Pending Reviews',  value: summary.pendingReviews  ?? 0, icon: AlertCircle,  cls: 'bg-warning/10 text-warning'     },
+    { label: 'Active Tasks',     value: summary.activeTasks     ?? 0, icon: TrendingUp,   cls: 'bg-muted text-muted-foreground' },
   ]
 
   return (
@@ -282,13 +481,12 @@ function AdminDashboard() {
           <div className="text-destructive text-sm text-center py-12">{error}</div>
         ) : (
           <>
-            {/* Summary cards */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               {summaryCards.map(c => (
                 <Card key={c.label} className="border-border bg-card">
                   <CardContent className="p-3">
                     <div className="flex items-center gap-2">
-                      <div className={`p-1.5 rounded-lg ${c.bg}`}><c.icon className={`h-4 w-4 ${c.color}`} /></div>
+                      <div className={`p-1.5 rounded-lg ${c.cls}`}><c.icon className="h-4 w-4" /></div>
                       <div>
                         <p className="text-xl font-bold">{c.value}</p>
                         <p className="text-[10px] text-muted-foreground">{c.label}</p>
@@ -298,21 +496,17 @@ function AdminDashboard() {
                 </Card>
               ))}
             </div>
-
-            {/* Quick actions */}
             <div className="flex flex-wrap gap-2">
               <Button size="sm" className="gap-1.5 text-xs" asChild>
-                <Link href="/dashboard/admin"><Users className="h-3.5 w-3.5" />Manage Users</Link>
+                <Link href={`${basePath}/admin`}><Users className="h-3.5 w-3.5" />Manage Users</Link>
               </Button>
               <Button size="sm" variant="outline" className="gap-1.5 text-xs" asChild>
-                <Link href="/dashboard/work"><Workflow className="h-3.5 w-3.5" />Filter Tasks</Link>
+                <Link href={`${basePath}/work`}><Workflow className="h-3.5 w-3.5" />Filter Tasks</Link>
               </Button>
               <Button size="sm" variant="outline" className="gap-1.5 text-xs" asChild>
-                <Link href="/dashboard/reports"><BarChart3 className="h-3.5 w-3.5" />Reports</Link>
+                <Link href={`${basePath}/reports`}><BarChart3 className="h-3.5 w-3.5" />Reports</Link>
               </Button>
             </div>
-
-            {/* Team lists */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Card className="border-border bg-card">
                 <CardHeader className="pb-2 pt-4 px-4 flex flex-row items-center justify-between space-y-0">
@@ -324,7 +518,7 @@ function AdminDashboard() {
                     ? <p className="text-xs text-muted-foreground">No annotators yet</p>
                     : annotatorPerf.slice(0, 5).map(a => (
                         <div key={a.id as string} className="flex items-center gap-2.5">
-                          <div className="h-7 w-7 rounded-full bg-primary/20 text-primary text-[10px] font-medium flex items-center justify-center shrink-0">
+                          <div className="h-7 w-7 rounded-full bg-primary/15 text-primary text-[10px] font-medium flex items-center justify-center shrink-0">
                             {(a.name as string).split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
                           </div>
                           <div className="flex-1 min-w-0">
@@ -334,12 +528,11 @@ function AdminDashboard() {
                         </div>
                       ))
                   }
-                  <Link href="/dashboard/admin" className="flex items-center gap-1 text-xs text-primary hover:underline pt-1">
+                  <Link href={`${basePath}/admin`} className="flex items-center gap-1 text-xs text-primary hover:underline pt-1">
                     See all <ArrowRight className="h-3 w-3" />
                   </Link>
                 </CardContent>
               </Card>
-
               <Card className="border-border bg-card">
                 <CardHeader className="pb-2 pt-4 px-4 flex flex-row items-center justify-between space-y-0">
                   <CardTitle className="text-sm">Reviewers</CardTitle>
@@ -350,7 +543,7 @@ function AdminDashboard() {
                     ? <p className="text-xs text-muted-foreground">No reviewers yet</p>
                     : reviewerAct.slice(0, 5).map(r => (
                         <div key={r.id as string} className="flex items-center gap-2.5">
-                          <div className="h-7 w-7 rounded-full bg-purple-500/20 text-purple-400 text-[10px] font-medium flex items-center justify-center shrink-0">
+                          <div className="h-7 w-7 rounded-full bg-success/15 text-success text-[10px] font-medium flex items-center justify-center shrink-0">
                             {(r.name as string).split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
                           </div>
                           <div className="flex-1 min-w-0">
@@ -360,7 +553,7 @@ function AdminDashboard() {
                         </div>
                       ))
                   }
-                  <Link href="/dashboard/admin" className="flex items-center gap-1 text-xs text-primary hover:underline pt-1">
+                  <Link href={`${basePath}/admin`} className="flex items-center gap-1 text-xs text-primary hover:underline pt-1">
                     See all <ArrowRight className="h-3 w-3" />
                   </Link>
                 </CardContent>

@@ -2,19 +2,25 @@ import { NextRequest, NextResponse } from 'next/server'
 import { connectToDatabase } from '@/lib/mongodb'
 import Batch from '@/lib/models/Batch'
 import Task from '@/lib/models/Task'
+import { requireTenant, isClientAdmin, isValidObjectId } from '@/lib/tenant'
 
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params
-    await connectToDatabase()
+    const ctx = requireTenant(req)
+    if (ctx instanceof NextResponse) return ctx
 
-    const batch = await Batch.findById(id).lean()
+    await connectToDatabase()
+    const tf = isValidObjectId(ctx.tenantId) ? { tenantId: ctx.tenantId } : {}
+    const batch = await Batch.findOne({ _id: id, ...tf }).lean()
     if (!batch) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-    const tasks = await Task.find({ batchId: id }).sort({ priority: -1 }).lean()
+    const tasks = await Task.find({ batchId: id, ...tf }).sort({ priority: -1 }).lean()
 
     return NextResponse.json({
       id: batch._id.toString(),
+      tenantId: batch.tenantId.toString(),
+      projectId: batch.projectId?.toString(),
       workflowId: batch.workflowId.toString(),
       workflowName: batch.workflowName,
       title: batch.title,
@@ -57,30 +63,42 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const role = req.headers.get('x-user-role')
-    if (role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-
     const { id } = await params
+    const ctx = requireTenant(req)
+    if (ctx instanceof NextResponse) return ctx
+    if (!isClientAdmin(ctx.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
     const body = await req.json()
     await connectToDatabase()
 
-    const batch = await Batch.findByIdAndUpdate(id, body, { new: true }).lean()
+    const tf = isValidObjectId(ctx.tenantId) ? { tenantId: ctx.tenantId } : {}
+    const batch = await Batch.findOneAndUpdate({ _id: id, ...tf }, body, { new: true }).lean()
     if (!batch) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
     return NextResponse.json({ id: batch._id.toString(), ...batch })
   } catch (err) {
+    console.error('[batches/[id] PUT]', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
-export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params
+    const ctx = requireTenant(req)
+    if (ctx instanceof NextResponse) return ctx
+    if (!isClientAdmin(ctx.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
     await connectToDatabase()
-    await Batch.findByIdAndDelete(id)
-    await Task.deleteMany({ batchId: id })
+    const tf = isValidObjectId(ctx.tenantId) ? { tenantId: ctx.tenantId } : {}
+    const batch = await Batch.findOne({ _id: id, ...tf })
+    if (!batch) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+    await batch.deleteOne()
+    await Task.deleteMany({ batchId: id, ...tf })
     return NextResponse.json({ message: 'Deleted' })
   } catch (err) {
+    console.error('[batches/[id] DELETE]', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

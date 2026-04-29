@@ -1,10 +1,21 @@
-export type UserRole = 'annotator' | 'reviewer' | 'admin'
+// ─── Roles ────────────────────────────────────────────────────────────────────
+// "tenant" is an internal concept only. In the UI always use "client", "workspace", or "project".
+export type UserRole = 'super_admin' | 'client_admin' | 'qa_lead' | 'reviewer' | 'annotator' | 'reviewer_annotator'
 
+export function isSuperAdmin(role: UserRole) { return role === 'super_admin' }
+export function isClientAdmin(role: UserRole) { return role === 'client_admin' || role === 'super_admin' }
+export function isQaOrAbove(role: UserRole)   { return role === 'qa_lead' || isClientAdmin(role) }
+export function isReviewerOrAbove(role: UserRole) { return role === 'reviewer' || role === 'reviewer_annotator' || isQaOrAbove(role) }
+export function isFieldWorker(role: UserRole) { return role === 'annotator' || role === 'reviewer' || role === 'reviewer_annotator' }
+
+// ─── Workflow / Task types ─────────────────────────────────────────────────────
 export type WorkflowType =
   | 'agentic-ai' | 'llm-training' | 'multimodal' | 'evaluation'
   | 'benchmarking' | 'preference-ranking' | 'red-teaming' | 'data-collection'
 
 export type TaskType = WorkflowType
+
+export type WorkflowStage = 'annotation' | 'review' | 'qa'
 
 export type BatchStatus = 'available' | 'in-progress' | 'completed' | 'pending-review'
 
@@ -12,6 +23,49 @@ export type TaskStatus =
   | 'unclaimed' | 'in-progress' | 'paused' | 'submitted' | 'in-review'
   | 'approved' | 'rejected' | 'revision-requested' | 'escalated' | 'data-ready'
 
+// ─── Client / Tenant ──────────────────────────────────────────────────────────
+export type ClientPlan = 'starter' | 'pro' | 'enterprise'
+
+/** Internal: a "tenant". In the UI this is called a "client" or "workspace". */
+export interface Client {
+  id: string
+  name: string
+  /** URL-safe identifier, e.g. "acme-corp". Used in /[clientSlug]/... routing. */
+  slug: string
+  description?: string
+  logoUrl?: string
+  isActive: boolean
+  plan: ClientPlan
+  settings?: Record<string, unknown>
+  createdAt: string
+}
+
+// ─── Project ──────────────────────────────────────────────────────────────────
+export interface Project {
+  id: string
+  tenantId: string
+  name: string
+  description?: string
+  /** Markdown guidelines shown to annotators */
+  guidelines?: string
+  taskTypes: WorkflowType[]
+  workflowStages: WorkflowStage[]
+  isActive: boolean
+  createdAt: string
+}
+
+// ─── Membership ───────────────────────────────────────────────────────────────
+/** Maps a user to a client workspace with a specific role within that workspace. */
+export interface ClientMembership {
+  id: string
+  userId: string
+  tenantId: string
+  role: UserRole
+  isActive: boolean
+  joinedAt: string
+}
+
+// ─── Error tags ───────────────────────────────────────────────────────────────
 export type ErrorSeverity = 'major' | 'minor'
 
 export const MAJOR_ERROR_CATEGORIES = [
@@ -64,6 +118,7 @@ export interface ActivityEntry {
   timestamp: string
 }
 
+// ─── Badge ────────────────────────────────────────────────────────────────────
 export type BadgeType = 'role' | 'expertise' | 'level'
 
 export interface Badge {
@@ -73,19 +128,26 @@ export interface Badge {
   awardedAt: string
 }
 
+// ─── User ─────────────────────────────────────────────────────────────────────
 export interface User {
   id: string
   name: string
   email: string
+  /** System-level role. super_admin bypasses all client scoping. */
   role: UserRole
+  /** Active client context (tenantId). Absent for super_admin acting globally. */
+  tenantId?: string
   department?: string
   isActive?: boolean
   badges?: Badge[]
   createdAt?: string
 }
 
+// ─── Workflow ─────────────────────────────────────────────────────────────────
 export interface Workflow {
   id: string
+  tenantId: string
+  projectId?: string
   name: string
   description: string
   type: WorkflowType
@@ -96,8 +158,11 @@ export interface Workflow {
   createdAt: string
 }
 
+// ─── Batch ────────────────────────────────────────────────────────────────────
 export interface Batch {
   id: string
+  tenantId: string
+  projectId?: string
   workflowId: string
   workflowName: string
   title: string
@@ -113,6 +178,7 @@ export interface Batch {
   createdAt: string
 }
 
+// ─── Task ─────────────────────────────────────────────────────────────────────
 export interface TaskSubtask {
   id: string
   title: string
@@ -122,6 +188,8 @@ export interface TaskSubtask {
 
 export interface Task {
   id: string
+  tenantId: string
+  projectId?: string
   batchId: string
   batchTitle: string
   workflowId: string
@@ -173,8 +241,11 @@ export interface TaskReview {
   reviewedAt?: string
 }
 
+// ─── Review ───────────────────────────────────────────────────────────────────
 export interface Review {
   id: string
+  tenantId: string
+  projectId?: string
   taskId: string
   taskTitle: string
   batchId: string
@@ -197,8 +268,10 @@ export interface Review {
   errorTags?: ErrorTag[]
 }
 
+// ─── Notification ─────────────────────────────────────────────────────────────
 export interface Notification {
   id: string
+  tenantId?: string
   userId?: string
   type: 'batch-assigned' | 'task-approved' | 'task-rejected' | 'review-needed' | 'priority-warning' | 'system' | 'escalation' | 'deadline'
   title: string
@@ -208,6 +281,7 @@ export interface Notification {
   createdAt: string
 }
 
+// ─── Priority helpers ─────────────────────────────────────────────────────────
 export type Priority = number
 
 export function priorityToLabel(priority: Priority): string {

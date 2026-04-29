@@ -2,10 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { connectToDatabase } from '@/lib/mongodb'
 import Task from '@/lib/models/Task'
 import Batch from '@/lib/models/Batch'
+import { requireTenant, isClientAdmin, isSuperAdmin, isReviewerOrAbove, isValidObjectId } from '@/lib/tenant'
 
 function serializeTask(t: Record<string, unknown>) {
   return {
     id: (t._id as { toString(): string }).toString(),
+    tenantId: (t.tenantId as { toString(): string } | undefined)?.toString(),
+    projectId: (t.projectId as { toString(): string } | undefined)?.toString(),
     batchId: (t.batchId as { toString(): string }).toString(),
     batchTitle: t.batchTitle,
     workflowId: (t.workflowId as { toString(): string }).toString(),
@@ -40,14 +43,21 @@ function serializeTask(t: Record<string, unknown>) {
 
 export async function GET(req: NextRequest) {
   try {
+    const ctx = requireTenant(req)
+    if (ctx instanceof NextResponse) return ctx
+
     await connectToDatabase()
     const { searchParams } = new URL(req.url)
-    const userId = req.headers.get('x-user-id')
-    const role = req.headers.get('x-user-role')
+    const { userId, role } = ctx
+    let { tenantId } = ctx
+
     const batchId = searchParams.get('batchId')
     const status = searchParams.get('status')
     const mine = searchParams.get('mine')
-    // Admin advanced filter params
+    const projectId = searchParams.get('projectId')
+    const clientSlugParam = searchParams.get('clientSlug')
+    const clientIdParam = searchParams.get('clientId')
+    // Admin / qa_lead advanced filters
     const workflow = searchParams.get('workflow')
     const annotatorEmail = searchParams.get('annotatorEmail')
     const reviewerEmail = searchParams.get('reviewerEmail')
@@ -55,25 +65,42 @@ export async function GET(req: NextRequest) {
     const dateTo = searchParams.get('dateTo')
     const dateExact = searchParams.get('dateExact')
 
-    const filter: Record<string, unknown> = {}
-    if (batchId) filter.batchId = batchId
+    // Resolve tenantId for super_admin who may pass clientSlug/clientId as query param
+    if (!isValidObjectId(tenantId) && isSuperAdmin(role)) {
+      if (clientSlugParam) {
+        const client = await (await import('@/lib/models/Client')).default.findOne({ slug: clientSlugParam }).lean()
+        if (client) tenantId = (client._id as { toString(): string }).toString()
+      } else if (clientIdParam && isValidObjectId(clientIdParam)) {
+        tenantId = clientIdParam
+      }
+    }
 
-    // status can be comma-separated
+    // Scope to current workspace; if super_admin has no tenant context, show all
+    const filter: Record<string, unknown> = isValidObjectId(tenantId) ? { tenantId } : {}
+    if (batchId) filter.batchId = batchId
+    if (projectId) filter.projectId = projectId
+
     if (status && status !== 'all') {
       const statuses = status.split(',').map(s => s.trim())
       filter.status = statuses.length === 1 ? statuses[0] : { $in: statuses }
     }
 
-    if (mine === 'true' && role === 'annotator') filter.annotatorId = userId
-    if (mine === 'true' && role === 'reviewer') filter.reviewerId = userId
+    const viewAs = searchParams.get('viewAs') // 'annotator' | 'reviewer'
 
-    // Admin filters (only honoured for admin role)
-    if (role === 'admin') {
+    // Scope tasks to the requesting user where needed
+    if (role === 'annotator' || (role === 'reviewer_annotator' && viewAs === 'annotator')) {
+      filter.annotatorId = userId
+    } else if (mine === 'true' && (role === 'reviewer' || role === 'reviewer_annotator')) {
+      filter.reviewerId = userId
+    }
+
+    // Advanced filters for reviewers and above
+    if (isReviewerOrAbove(role)) {
       if (workflow) {
-        // Normalize: split on comma for OR values, then make each term flexible
-        // e.g. "agentic-ai" → /agentic[\s\-_]+ai/i  which matches "Agentic AI Evaluation"
         const flexRegex = (term: string) => {
-          const pattern = term.trim().split(/[-_\s]+/).map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('[\\s\\-_]+')
+          const pattern = term.trim().split(/[-_\s]+/)
+            .map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+            .join('[\\s\\-_]+')
           return new RegExp(pattern, 'i')
         }
         const names = workflow.split(',').map(s => s.trim())
@@ -82,23 +109,25 @@ export async function GET(req: NextRequest) {
           { taskType: { $regex: n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' } },
         ])
       }
-      if (annotatorEmail) {
-        const emails = annotatorEmail.split(',').map(s => s.trim())
-        filter.annotatorEmail = emails.length === 1 ? emails[0] : { $in: emails }
-      }
-      if (reviewerEmail) {
-        const emails = reviewerEmail.split(',').map(s => s.trim())
-        filter.reviewerEmail = emails.length === 1 ? emails[0] : { $in: emails }
-      }
-      if (dateExact) {
-        const d = new Date(dateExact)
-        const next = new Date(d); next.setDate(next.getDate() + 1)
-        filter.submittedAt = { $gte: d, $lt: next }
-      } else if (dateFrom || dateTo) {
-        const dateFilter: Record<string, Date> = {}
-        if (dateFrom) dateFilter.$gte = new Date(dateFrom)
-        if (dateTo) { const d = new Date(dateTo); d.setDate(d.getDate() + 1); dateFilter.$lt = d }
-        filter.submittedAt = dateFilter
+      if (isClientAdmin(role)) {
+        if (annotatorEmail) {
+          const emails = annotatorEmail.split(',').map(s => s.trim())
+          filter.annotatorEmail = emails.length === 1 ? emails[0] : { $in: emails }
+        }
+        if (reviewerEmail) {
+          const emails = reviewerEmail.split(',').map(s => s.trim())
+          filter.reviewerEmail = emails.length === 1 ? emails[0] : { $in: emails }
+        }
+        if (dateExact) {
+          const d = new Date(dateExact)
+          const next = new Date(d); next.setDate(next.getDate() + 1)
+          filter.submittedAt = { $gte: d, $lt: next }
+        } else if (dateFrom || dateTo) {
+          const dateFilter: Record<string, Date> = {}
+          if (dateFrom) dateFilter.$gte = new Date(dateFrom)
+          if (dateTo) { const d = new Date(dateTo); d.setDate(d.getDate() + 1); dateFilter.$lt = d }
+          filter.submittedAt = dateFilter
+        }
       }
     }
 
@@ -112,15 +141,17 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const role = req.headers.get('x-user-role')
-    if (role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    const ctx = requireTenant(req)
+    if (ctx instanceof NextResponse) return ctx
+    if (!isClientAdmin(ctx.role)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
 
     const body = await req.json()
     await connectToDatabase()
 
-    const task = await Task.create(body)
+    const task = await Task.create({ ...body, tenantId: ctx.tenantId })
 
-    // Increment batch tasksTotal
     await Batch.findByIdAndUpdate(body.batchId, { $inc: { tasksTotal: 1 } })
 
     return NextResponse.json(serializeTask(task.toObject() as unknown as Record<string, unknown>), { status: 201 })

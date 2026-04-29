@@ -18,6 +18,8 @@ interface IErrorTag {
 }
 
 export interface IReview extends Document {
+  tenantId: mongoose.Types.ObjectId
+  projectId?: mongoose.Types.ObjectId
   taskId: mongoose.Types.ObjectId
   taskTitle: string
   batchId: mongoose.Types.ObjectId
@@ -48,6 +50,8 @@ export interface IReview extends Document {
 
 const ReviewSchema = new Schema<IReview>(
   {
+    tenantId: { type: Schema.Types.ObjectId, ref: 'Client', required: true },
+    projectId: { type: Schema.Types.ObjectId, ref: 'Project' },
     taskId: { type: Schema.Types.ObjectId, ref: 'Task', required: true },
     taskTitle: { type: String, required: true },
     batchId: { type: Schema.Types.ObjectId, ref: 'Batch', required: true },
@@ -91,6 +95,11 @@ const ReviewSchema = new Schema<IReview>(
   },
   { timestamps: true }
 )
+
+ReviewSchema.index({ tenantId: 1 })
+ReviewSchema.index({ tenantId: 1, projectId: 1 })
+ReviewSchema.index({ tenantId: 1, status: 1 })
+ReviewSchema.index({ tenantId: 1, reviewerId: 1 })
 
 const Review: Model<IReview> = mongoose.models.Review || mongoose.model<IReview>('Review', ReviewSchema)
 export default Review

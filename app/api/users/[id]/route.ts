@@ -1,15 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { connectToDatabase } from '@/lib/mongodb'
 import User from '@/lib/models/User'
+import ClientMembership from '@/lib/models/ClientMembership'
+import { requireTenant, isClientAdmin, isValidObjectId } from '@/lib/tenant'
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const role = req.headers.get('x-user-role')!
-    const currentUserId = req.headers.get('x-user-id')!
     const { id } = await params
+    const ctx = requireTenant(req)
+    if (ctx instanceof NextResponse) return ctx
 
-    // Allow users to update their own profile; only admins can change roles/status
-    if (role !== 'admin' && currentUserId !== id) {
+    const { userId: currentUserId, role } = ctx
+
+    // Users may update their own profile; client_admin+ can update anyone in their workspace
+    if (!isClientAdmin(role) && currentUserId !== id) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
@@ -19,36 +23,49 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const update: Record<string, unknown> = {}
     if (body.name) update.name = body.name
     if (body.department !== undefined) update.department = body.department
-    if (role === 'admin') {
-      if (body.role) update.role = body.role
+
+    if (isClientAdmin(role)) {
       if (body.isActive !== undefined) update.isActive = body.isActive
+      // Role changes go through membership, not the user's system role
+      const mf = isValidObjectId(ctx.tenantId) ? { tenantId: ctx.tenantId } : {}
+      if (body.role) {
+        await ClientMembership.findOneAndUpdate(
+          { userId: id, ...mf },
+          { role: body.role }
+        )
+      }
     }
 
     const user = await User.findByIdAndUpdate(id, update, { new: true })
       .select('-passwordHash -otp -otpExpiry')
-
     if (!user) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+    // Get the membership role for the current tenant
+    const mf2 = isValidObjectId(ctx.tenantId) ? { tenantId: ctx.tenantId } : {}
+    const membership = await ClientMembership.findOne({ userId: id, ...mf2 })
 
     return NextResponse.json({
       id: user._id.toString(),
       name: user.name,
       email: user.email,
-      role: user.role,
+      role: membership?.role ?? user.role,
       department: user.department,
       isActive: user.isActive,
       badges: user.badges,
     })
   } catch (err) {
+    console.error('[users/[id] PUT]', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const role = req.headers.get('x-user-role')!
-    if (role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-
     const { id } = await params
+    const ctx = requireTenant(req)
+    if (ctx instanceof NextResponse) return ctx
+    if (!isClientAdmin(ctx.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
     const { action, badge } = await req.json()
     await connectToDatabase()
 
@@ -68,6 +85,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       badges: user.badges,
     })
   } catch (err) {
+    console.error('[users/[id] PATCH]', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

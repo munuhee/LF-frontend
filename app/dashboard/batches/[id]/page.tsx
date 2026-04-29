@@ -10,6 +10,7 @@ import { StatusBadge, PriorityBadge, TaskTypeBadge } from '@/components/status-b
 import { api } from '@/lib/api'
 import { useAuth } from '@/lib/auth-context'
 import type { Batch, Task } from '@/lib/types'
+import { isClientAdmin } from '@/lib/types'
 
 interface BatchDetail extends Batch {
   instructions?: string
@@ -120,7 +121,7 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
                           <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
                             <span className="flex items-center gap-1"><Clock className="h-3.5 w-3.5" />~{task.estimatedDuration}m</span>
                             {task.qualityScore && <span className="text-success">Score: {task.qualityScore}%</span>}
-                            {user?.role === 'admin' && task.annotatorEmail && <span>Annotator: {task.annotatorEmail}</span>}
+                            {isClientAdmin(user?.role ?? 'annotator') && task.annotatorEmail && <span>Annotator: {task.annotatorEmail}</span>}
                           </div>
                         </div>
                         <div className="flex items-center gap-2">

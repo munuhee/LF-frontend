@@ -8,7 +8,7 @@ import AdminWork from './_admin'
 export default function WorkPage() {
   const { user } = useAuth()
   if (!user) return null
-  if (user.role === 'annotator') return <AnnotatorWork />
+  if (user.role === 'annotator' || user.role === 'reviewer_annotator') return <AnnotatorWork />
   if (user.role === 'reviewer') return <ReviewerWork />
   return <AdminWork />
 }

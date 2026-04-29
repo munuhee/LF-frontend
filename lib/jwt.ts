@@ -8,6 +8,12 @@ export interface TokenPayload extends JWTPayload {
   userId: string
   email: string
   role: string
+  /** MongoDB ObjectId of the active client (absent for super_admin acting globally) */
+  tenantId?: string
+  /** URL slug of the active client, e.g. "acme-corp" */
+  clientSlug?: string
+  /** Set during super_admin impersonation — userId of the admin who initiated it */
+  impersonatedBy?: string
 }
 
 export async function signToken(payload: Omit<TokenPayload, keyof JWTPayload>): Promise<string> {

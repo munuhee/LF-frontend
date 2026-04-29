@@ -12,7 +12,6 @@ async function apiFetch(path: string, options: RequestInit = {}) {
     })
 
     if (res.status === 401) {
-      // Only redirect if we're inside the app, not on auth endpoints or the login page itself
       if (
         typeof window !== 'undefined' &&
         window.location.pathname !== '/' &&
@@ -38,18 +37,75 @@ async function apiFetch(path: string, options: RequestInit = {}) {
   }
 }
 
-// Auth
 export const api = {
+  // ── Auth ────────────────────────────────────────────────────────────────────
   auth: {
     login: (email: string, password: string) =>
       apiFetch('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
-    verifyOtp: (email: string, otp: string) =>
-      apiFetch('/api/auth/verify-otp', { method: 'POST', body: JSON.stringify({ email, otp }) }),
+    verifyOtp: (email: string, otp: string, clientSlug?: string) =>
+      apiFetch('/api/auth/verify-otp', { method: 'POST', body: JSON.stringify({ email, otp, clientSlug }) }),
     logout: () => apiFetch('/api/auth/logout', { method: 'POST' }),
     me: () => apiFetch('/api/auth/me'),
+    /** Super Admin only: impersonate a user in a specific workspace */
+    impersonate: (targetUserId: string, clientSlug: string) =>
+      apiFetch('/api/auth/impersonate', { method: 'POST', body: JSON.stringify({ targetUserId, clientSlug }) }),
   },
 
+  // ── Clients (Super Admin) ───────────────────────────────────────────────────
+  clients: {
+    list: () => apiFetch('/api/clients'),
+    get: (id: string) => apiFetch(`/api/clients/${id}`),
+    create: (data: Record<string, unknown>) =>
+      apiFetch('/api/clients', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: string, data: Record<string, unknown>) =>
+      apiFetch(`/api/clients/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    deactivate: (id: string) =>
+      apiFetch(`/api/clients/${id}`, { method: 'DELETE' }),
+    activate: (id: string) =>
+      apiFetch(`/api/clients/${id}`, { method: 'PATCH', body: JSON.stringify({ action: 'activate' }) }),
+  },
+
+  // ── Projects (Client Admin) ─────────────────────────────────────────────────
+  projects: {
+    list: (params?: Record<string, string>) => {
+      const q = params ? '?' + new URLSearchParams(params).toString() : ''
+      return apiFetch(`/api/projects${q}`)
+    },
+    get: (id: string) => apiFetch(`/api/projects/${id}`),
+    create: (data: Record<string, unknown>) =>
+      apiFetch('/api/projects', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: string, data: Record<string, unknown>) =>
+      apiFetch(`/api/projects/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    delete: (id: string) => apiFetch(`/api/projects/${id}`, { method: 'DELETE' }),
+  },
+
+  // ── Memberships (Client Admin + Super Admin) ────────────────────────────────
+  memberships: {
+    list: () => apiFetch('/api/memberships'),
+    /** Super Admin: list members of any client by its id */
+    listForClient: (clientId: string) => apiFetch(`/api/memberships?clientId=${clientId}`),
+    /** Super Admin: list members of any client by its slug */
+    listForClientSlug: (clientSlug: string) => apiFetch(`/api/memberships?clientSlug=${clientSlug}`),
+    add: (data: { userId?: string; email?: string; role: string }) =>
+      apiFetch('/api/memberships', { method: 'POST', body: JSON.stringify(data) }),
+    /** Super Admin: add a member to any client workspace by client id */
+    addToClient: (clientId: string, data: { email: string; role: string }) =>
+      apiFetch('/api/memberships', { method: 'POST', body: JSON.stringify({ ...data, clientId }) }),
+    updateRole: (membershipId: string, role: string) =>
+      apiFetch('/api/memberships', { method: 'PATCH', body: JSON.stringify({ membershipId, action: 'update-role', role }) }),
+    deactivate: (membershipId: string) =>
+      apiFetch('/api/memberships', { method: 'PATCH', body: JSON.stringify({ membershipId, action: 'deactivate' }) }),
+    reactivate: (membershipId: string) =>
+      apiFetch('/api/memberships', { method: 'PATCH', body: JSON.stringify({ membershipId, action: 'reactivate' }) }),
+  },
+
+  // ── Workflows ───────────────────────────────────────────────────────────────
   workflows: {
+    /**
+     * List workflows. Accepts standard filter params plus:
+     * - clientSlug: filter by workspace slug (super_admin only)
+     * - clientId: filter by workspace id (super_admin only)
+     */
     list: (params?: Record<string, string>) => {
       const q = params ? '?' + new URLSearchParams(params).toString() : ''
       return apiFetch(`/api/workflows${q}`)
@@ -66,7 +122,13 @@ export const api = {
       apiFetch(`/api/workflows/${id}`, { method: 'PATCH', body: JSON.stringify({ action: 'unassign', userId }) }),
   },
 
+  // ── Batches ─────────────────────────────────────────────────────────────────
   batches: {
+    /**
+     * List batches. Accepts workflowId, status, taskType, projectId plus:
+     * - clientSlug: filter by workspace slug (super_admin only)
+     * - clientId: filter by workspace id (super_admin only)
+     */
     list: (params?: Record<string, string>) => {
       const q = params ? '?' + new URLSearchParams(params).toString() : ''
       return apiFetch(`/api/batches${q}`)
@@ -79,7 +141,14 @@ export const api = {
     delete: (id: string) => apiFetch(`/api/batches/${id}`, { method: 'DELETE' }),
   },
 
+  // ── Tasks ───────────────────────────────────────────────────────────────────
   tasks: {
+    /**
+     * List tasks. Accepts batchId, status, mine, projectId, workflow,
+     * annotatorEmail, reviewerEmail, dateFrom, dateTo, dateExact plus:
+     * - clientSlug: filter by workspace slug (super_admin only)
+     * - clientId: filter by workspace id (super_admin only)
+     */
     list: (params?: Record<string, string>) => {
       const q = params ? '?' + new URLSearchParams(params).toString() : ''
       return apiFetch(`/api/tasks${q}`)
@@ -104,7 +173,13 @@ export const api = {
     delete: (id: string) => apiFetch(`/api/tasks/${id}`, { method: 'DELETE' }),
   },
 
+  // ── Reviews ─────────────────────────────────────────────────────────────────
   reviews: {
+    /**
+     * List reviews. Accepts status, mine, projectId plus:
+     * - clientSlug: filter by workspace slug (super_admin only)
+     * - clientId: filter by workspace id (super_admin only)
+     */
     list: (params?: Record<string, string>) => {
       const q = params ? '?' + new URLSearchParams(params).toString() : ''
       return apiFetch(`/api/reviews${q}`)
@@ -116,21 +191,38 @@ export const api = {
       apiFetch(`/api/reviews/${id}`, { method: 'PATCH', body: JSON.stringify({ action: 'decide', ...data }) }),
   },
 
+  // ── Notifications ────────────────────────────────────────────────────────────
   notifications: {
     list: () => apiFetch('/api/notifications'),
     markRead: (id: string) => apiFetch(`/api/notifications/${id}`, { method: 'PATCH' }),
     markAllRead: () => apiFetch('/api/notifications', { method: 'PUT', body: JSON.stringify({ markAllRead: true }) }),
   },
 
+  // ── Analytics ───────────────────────────────────────────────────────────────
   analytics: {
+    /**
+     * Get analytics. Accepts projectId plus:
+     * - clientSlug: scope to a workspace by slug (super_admin only)
+     * - clientId: scope to a workspace by id (super_admin only)
+     * Returns empty analytics for super_admin with no workspace context.
+     */
     get: (params?: Record<string, string>) => {
       const q = params && Object.keys(params).length ? '?' + new URLSearchParams(params).toString() : ''
       return apiFetch(`/api/analytics${q}`)
     },
   },
 
+  // ── Users ────────────────────────────────────────────────────────────────────
   users: {
-    list: () => apiFetch('/api/users'),
+    /**
+     * List users. For super_admin, accepts:
+     * - clientSlug: filter to members of a specific workspace by slug
+     * - clientId: filter to members of a specific workspace by id
+     */
+    list: (params?: Record<string, string>) => {
+      const q = params && Object.keys(params).length ? '?' + new URLSearchParams(params).toString() : ''
+      return apiFetch(`/api/users${q}`)
+    },
     create: (data: Record<string, unknown>) =>
       apiFetch('/api/users', { method: 'POST', body: JSON.stringify(data) }),
     update: (id: string, data: Record<string, unknown>) =>

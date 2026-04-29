@@ -16,10 +16,10 @@ const statusColor: Record<string, string> = {
   'approved': 'bg-success/10 text-success border-success/20',
   'rejected': 'bg-destructive/10 text-destructive border-destructive/20',
   'revision-requested': 'bg-warning/10 text-warning border-warning/20',
-  'in-review': 'bg-blue-500/10 text-blue-400 border-blue-500/20',
-  'escalated': 'bg-orange-500/10 text-orange-400 border-orange-500/20',
-  'on-hold': 'bg-purple-500/10 text-purple-400 border-purple-500/20',
-  'flagged': 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',
+  'in-review': 'bg-primary/10 text-primary border-primary/20',
+  'escalated': 'bg-destructive/10 text-destructive border-destructive/20',
+  'on-hold':   'bg-muted text-muted-foreground border-border',
+  'flagged':   'bg-warning/10 text-warning border-warning/20',
 }
 
 export default function ReviewerWork() {
@@ -41,23 +41,23 @@ export default function ReviewerWork() {
 
   const ReviewRow = ({ review }: { review: Review }) => (
     <Card className="border-border bg-card">
-      <CardContent className="p-3 flex items-center gap-3">
+      <CardContent className="p-4 flex items-center gap-4">
         <div className="flex-1 min-w-0">
-          <p className="font-medium text-sm truncate">{review.taskTitle}</p>
-          <p className="text-xs text-muted-foreground truncate">{review.batchTitle} · By {review.annotatorName}</p>
+          <p className="font-medium text-base truncate">{review.taskTitle}</p>
+          <p className="text-sm text-muted-foreground truncate mt-1">{review.batchTitle} · By {review.annotatorName}</p>
           {review.reviewedAt && (
-            <p className="text-[10px] text-muted-foreground mt-0.5">
+            <p className="text-xs text-muted-foreground mt-2">
               Reviewed {new Date(review.reviewedAt).toLocaleDateString()}
             </p>
           )}
         </div>
         {review.qualityScore && (
-          <span className="text-sm font-medium text-success shrink-0">{review.qualityScore}%</span>
+          <span className="text-lg font-medium text-success shrink-0">{review.qualityScore}%</span>
         )}
-        <Badge variant="outline" className={`text-[10px] shrink-0 ${statusColor[review.status] || ''}`}>
+        <Badge variant="outline" className={`text-sm shrink-0 ${statusColor[review.status] || ''}`}>
           {review.status.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
         </Badge>
-        <Button size="sm" variant="outline" className="h-7 text-xs px-2.5 shrink-0" asChild>
+        <Button size="sm" className="h-9 px-4 text-sm shrink-0" asChild>
           <Link href={`/dashboard/tasks/${review.taskId}`}>View</Link>
         </Button>
       </CardContent>
@@ -66,8 +66,8 @@ export default function ReviewerWork() {
 
   const Empty = ({ label }: { label: string }) => (
     <Card className="border-border bg-card">
-      <CardContent className="flex items-center justify-center py-8">
-        <p className="text-sm text-muted-foreground">{label}</p>
+      <CardContent className="flex items-center justify-center py-12">
+        <p className="text-base text-muted-foreground">{label}</p>
       </CardContent>
     </Card>
   )
@@ -75,28 +75,28 @@ export default function ReviewerWork() {
   return (
     <>
       <TopBar title="Work" subtitle="Your review activity" />
-      <main className="flex-1 overflow-y-auto p-4 lg:p-6">
+      <main className="flex-1 overflow-y-auto p-2 lg:p-3 space-y-3">
         {isLoading ? (
           <div className="flex items-center justify-center py-12 text-muted-foreground">Loading...</div>
         ) : error ? (
           <div className="flex items-center justify-center py-12 text-destructive text-sm">{error}</div>
         ) : (
-          <Tabs defaultValue="active" className="space-y-4">
-            <TabsList className="bg-card border border-border h-9">
-              <TabsTrigger value="active" className="gap-1.5 text-xs">
-                <Clock className="h-3.5 w-3.5" />In Progress ({active.length})
+          <Tabs defaultValue="active" className="space-y-3">
+            <TabsList className="bg-card border border-border h-10">
+              <TabsTrigger value="active" className="gap-2 text-sm">
+                <Clock className="h-4 w-4" />In Progress ({active.length})
               </TabsTrigger>
-              <TabsTrigger value="done" className="gap-1.5 text-xs">
-                <CheckCircle className="h-3.5 w-3.5" />Completed ({done.length})
+              <TabsTrigger value="done" className="gap-2 text-sm">
+                <CheckCircle className="h-4 w-4" />Completed ({done.length})
               </TabsTrigger>
             </TabsList>
             <TabsContent value="active">
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {active.length ? active.map(r => <ReviewRow key={r.id} review={r} />) : <Empty label="No active reviews" />}
               </div>
             </TabsContent>
             <TabsContent value="done">
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {done.length ? done.map(r => <ReviewRow key={r.id} review={r} />) : <Empty label="No completed reviews yet" />}
               </div>
             </TabsContent>

@@ -4,40 +4,97 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
   LayoutDashboard, Briefcase, Bell, ShieldCheck,
-  BarChart3, Clock, LogOut, PanelLeftClose, PanelLeftOpen,
+  BarChart3, LogOut, PanelLeftClose, PanelLeftOpen,
+  FolderOpen, Users, Settings, Layers,
 } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
 import { useState } from "react"
+import type { UserRole } from "@/lib/types"
 
-const getNavItems = (role: string) => {
-  if (role === "annotator") return [
-    { title: "Assignments", url: "/dashboard", icon: LayoutDashboard, exact: true },
-    { title: "Work", url: "/dashboard/work", icon: Briefcase },
-    { title: "Notifications", url: "/dashboard/notifications", icon: Bell },
-  ]
+function getNavItems(role: UserRole, basePath: string) {
+  switch (role) {
+    case 'annotator':
+      return [
+        { title: "Assignments", url: `${basePath}`, icon: LayoutDashboard, exact: true },
+        { title: "Work", url: `${basePath}/work`, icon: Briefcase },
+        { title: "Notifications", url: `${basePath}/notifications`, icon: Bell },
+      ]
 
-  if (role === "reviewer") return [
-    { title: "Assignments", url: "/dashboard", icon: LayoutDashboard, exact: true },
-    { title: "Work", url: "/dashboard/work", icon: Briefcase },
-    { title: "Notifications", url: "/dashboard/notifications", icon: Bell },
-  ]
+    case 'reviewer':
+    case 'reviewer_annotator':
+      return [
+        { title: "Assignments", url: `${basePath}`, icon: LayoutDashboard, exact: true },
+        { title: "Work", url: `${basePath}/work`, icon: Briefcase },
+        { title: "Notifications", url: `${basePath}/notifications`, icon: Bell },
+      ]
 
-  // Admin
-  return [
-    { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard, exact: true },
-    { title: "Work", url: "/dashboard/work", icon: Briefcase },
-    { title: "Reports", url: "/dashboard/reports", icon: BarChart3 },
-    { title: "Hours", url: "/dashboard/hours", icon: Clock },
-    { title: "Notifications", url: "/dashboard/notifications", icon: Bell },
-    { title: "Admin", url: "/dashboard/admin", icon: ShieldCheck },
-  ]
+    case 'qa_lead':
+      return [
+        { title: "Overview", url: `${basePath}`, icon: LayoutDashboard, exact: true },
+        { title: "Work", url: `${basePath}/work`, icon: Briefcase },
+        { title: "Reviews", url: `${basePath}/reviews`, icon: ShieldCheck },
+        { title: "Reports", url: `${basePath}/reports`, icon: BarChart3 },
+        { title: "Notifications", url: `${basePath}/notifications`, icon: Bell },
+      ]
+
+    case 'client_admin':
+      return [
+        { title: "Dashboard", url: `${basePath}`, icon: LayoutDashboard, exact: true },
+        { title: "Projects", url: `${basePath}/batches`, icon: FolderOpen },
+        { title: "Work", url: `${basePath}/work`, icon: Briefcase },
+        { title: "Reports", url: `${basePath}/reports`, icon: BarChart3 },
+        { title: "Notifications", url: `${basePath}/notifications`, icon: Bell },
+        { title: "Team", url: `${basePath}/team`, icon: Users },
+        { title: "Settings", url: `${basePath}/settings`, icon: Settings },
+        { title: "Workspace", url: `${basePath}/admin`, icon: Layers },
+      ]
+
+    case 'super_admin':
+      return [
+        { title: "System Overview", url: `${basePath}`, icon: LayoutDashboard, exact: true },
+        { title: "Workspaces", url: `${basePath}/admin`, icon: ShieldCheck },
+        { title: "Work", url: `${basePath}/work`, icon: Briefcase },
+        { title: "Reports", url: `${basePath}/reports`, icon: BarChart3 },
+        { title: "Notifications", url: `${basePath}/notifications`, icon: Bell },
+        { title: "Team", url: `${basePath}/team`, icon: Users },
+      ]
+
+    default:
+      return [
+        { title: "Assignments", url: `${basePath}`, icon: LayoutDashboard, exact: true },
+        { title: "Work", url: `${basePath}/work`, icon: Briefcase },
+        { title: "Notifications", url: `${basePath}/notifications`, icon: Bell },
+      ]
+  }
+}
+
+function roleLabel(role: UserRole): string {
+  switch (role) {
+    case 'super_admin':  return 'Super Admin'
+    case 'client_admin': return 'Admin'
+    case 'qa_lead':      return 'QA Lead'
+    case 'reviewer':     return 'Reviewer'
+    case 'annotator':    return 'Annotator'
+    default:             return role
+  }
 }
 
 export function AppSidebar() {
   const pathname = usePathname()
   const { user, logout } = useAuth()
   const [collapsed, setCollapsed] = useState(false)
-  const navItems = getNavItems(user?.role ?? "annotator")
+
+  // Field workers (annotator, reviewer, reviewer_annotator) get a sidebar-free minimal interface
+  if (user && ['annotator', 'reviewer', 'reviewer_annotator'].includes(user.role)) return null
+
+  // Build the base path using the clientSlug from the active session.
+  // super_admin may have no clientSlug when acting globally.
+  const basePath = user?.clientSlug
+    ? `/${user.clientSlug}/dashboard`
+    : '/dashboard'
+
+  const role: UserRole = (user?.role as UserRole) ?? 'annotator'
+  const navItems = getNavItems(role, basePath)
 
   const initials = user
     ? user.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()
@@ -45,8 +102,9 @@ export function AppSidebar() {
 
   const NavItem = ({ item }: { item: typeof navItems[0] }) => {
     const active = (item as { exact?: boolean }).exact
-      ? pathname === item.url
-      : pathname === item.url || pathname.startsWith(item.url + "/")
+      ? pathname === item.url || pathname === item.url.replace(/^\/[^/]+/, '')
+      : pathname.startsWith(item.url) || pathname.startsWith(item.url.replace(/^\/[^/]+/, ''))
+
     return (
       <Link
         href={item.url}
@@ -73,7 +131,14 @@ export function AppSidebar() {
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary shrink-0">
           <span className="text-sm font-bold text-primary-foreground">LF</span>
         </div>
-        {!collapsed && <span className="text-base font-semibold text-foreground truncate">LabelForge</span>}
+        {!collapsed && (
+          <div className="min-w-0">
+            <span className="text-base font-semibold text-foreground truncate block">LabelForge</span>
+            {user?.clientSlug && (
+              <span className="text-[11px] text-muted-foreground truncate block">{user.clientSlug}</span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Toggle */}
@@ -101,7 +166,7 @@ export function AppSidebar() {
             <>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-foreground truncate">{user?.name ?? "Loading..."}</p>
-                <p className="text-xs text-muted-foreground capitalize truncate">{user?.role ?? ""}</p>
+                <p className="text-xs text-muted-foreground truncate">{user ? roleLabel(role) : ""}</p>
               </div>
               <button onClick={logout} title="Sign out"
                 className="p-1.5 rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors shrink-0">

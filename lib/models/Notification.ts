@@ -5,6 +5,7 @@ export type NotificationType =
   | 'priority-warning' | 'system' | 'escalation' | 'deadline'
 
 export interface INotification extends Document {
+  tenantId?: mongoose.Types.ObjectId
   userId: mongoose.Types.ObjectId
   type: NotificationType
   title: string
@@ -17,6 +18,7 @@ export interface INotification extends Document {
 
 const NotificationSchema = new Schema<INotification>(
   {
+    tenantId: { type: Schema.Types.ObjectId, ref: 'Client' },
     userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     type: {
       type: String,
@@ -32,6 +34,7 @@ const NotificationSchema = new Schema<INotification>(
 )
 
 NotificationSchema.index({ userId: 1, createdAt: -1 })
+NotificationSchema.index({ tenantId: 1, userId: 1 })
 
 const Notification: Model<INotification> =
   mongoose.models.Notification || mongoose.model<INotification>('Notification', NotificationSchema)

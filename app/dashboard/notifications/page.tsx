@@ -13,10 +13,10 @@ import type { Notification } from '@/lib/types'
 const typeColors: Record<string, string> = {
   'task-approved': 'bg-success/10 text-success border-success/20',
   'task-rejected': 'bg-destructive/10 text-destructive border-destructive/20',
-  'review-needed': 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+  'review-needed':  'bg-primary/10 text-primary border-primary/20',
   'batch-assigned': 'bg-primary/10 text-primary border-primary/20',
-  'escalation': 'bg-warning/10 text-warning border-warning/20',
-  'deadline': 'bg-orange-500/10 text-orange-400 border-orange-500/20',
+  'escalation':     'bg-destructive/10 text-destructive border-destructive/20',
+  'deadline':       'bg-warning/10 text-warning border-warning/20',
   'system': 'bg-muted text-muted-foreground border-border',
   'priority-warning': 'bg-warning/10 text-warning border-warning/20',
 }

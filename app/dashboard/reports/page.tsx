@@ -107,9 +107,9 @@ export default function ReportsPage() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {[
                 { label: 'Tasks This Week', value: totalTasksThisWeek, icon: TrendingUp, color: 'text-primary', bg: 'bg-primary/10' },
-                { label: 'Avg. Quality', value: `${summary.averageQualityScore || 0}%`, icon: Award, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
-                { label: 'Avg. Task Time', value: '18m', icon: Clock, color: 'text-blue-500', bg: 'bg-blue-500/10' },
-                { label: 'Active Annotators', value: summary.totalAnnotators || 0, icon: Users, color: 'text-amber-500', bg: 'bg-amber-500/10' },
+                { label: 'Avg. Quality',      value: `${summary.averageQualityScore || 0}%`, icon: Award,  color: 'text-success',          bg: 'bg-success/10'  },
+                { label: 'Avg. Task Time',    value: '18m',                                   icon: Clock,  color: 'text-muted-foreground', bg: 'bg-muted'       },
+                { label: 'Active Annotators', value: summary.totalAnnotators || 0,            icon: Users,  color: 'text-warning',          bg: 'bg-warning/10'  },
               ].map(s => (
                 <Card key={s.label} className="border-border bg-card">
                   <CardContent className="p-5">

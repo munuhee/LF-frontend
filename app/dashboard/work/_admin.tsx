@@ -96,7 +96,7 @@ export default function AdminWork() {
   return (
     <>
       <TopBar title="Work" subtitle="Filter and browse tasks across all workflows" />
-      <main className="flex-1 overflow-y-auto p-4 lg:p-6 space-y-4">
+      <main className="flex-1 overflow-y-auto p-2 lg:p-3 space-y-3">
         <FilterInput
           value={query}
           onChange={setQuery}
@@ -111,42 +111,42 @@ export default function AdminWork() {
 
         {searched && !isSearching && !error && (
           <>
-            <p className="text-xs text-muted-foreground">{tasks.length} result{tasks.length !== 1 ? 's' : ''}</p>
+            <p className="text-sm text-muted-foreground">{tasks.length} result{tasks.length !== 1 ? 's' : ''}</p>
             {tasks.length === 0 ? (
               <Card className="border-border bg-card">
-                <CardContent className="flex items-center justify-center py-10">
-                  <p className="text-sm text-muted-foreground">No tasks match this filter</p>
+                <CardContent className="flex items-center justify-center py-12">
+                  <p className="text-base text-muted-foreground">No tasks match this filter</p>
                 </CardContent>
               </Card>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {tasks.map(task => (
                   <Card key={task.id} className="border-border bg-card">
-                    <CardContent className="p-3">
-                      <div className="flex items-center gap-3">
+                    <CardContent className="p-4">
+                      <div className="flex items-center gap-4">
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                            <Link href={`/dashboard/tasks/${task.id}`} className="font-medium text-sm text-foreground hover:text-primary truncate">
+                          <div className="flex items-center gap-2 mb-1 flex-wrap">
+                            <Link href={`/dashboard/tasks/${task.id}`} className="font-medium text-base text-foreground hover:text-primary truncate">
                               {task.title}
                             </Link>
                             <StatusBadge status={task.status} />
                           </div>
-                          <p className="text-xs text-muted-foreground truncate">{task.workflowName} › {task.batchTitle}</p>
-                          <div className="flex items-center gap-3 text-[10px] text-muted-foreground mt-0.5 flex-wrap">
+                          <p className="text-sm text-muted-foreground truncate mt-1">{task.workflowName} › {task.batchTitle}</p>
+                          <div className="flex items-center gap-3 text-xs text-muted-foreground mt-2 flex-wrap">
                             {task.annotatorEmail && <span>Annotator: {task.annotatorEmail}</span>}
                             {task.reviewerEmail && <span>Reviewer: {task.reviewerEmail}</span>}
                             {task.submittedAt && <span>Submitted: {new Date(task.submittedAt).toLocaleDateString()}</span>}
                             {task.qualityScore && <span className="text-success font-medium">Quality: {task.qualityScore}%</span>}
                           </div>
                         </div>
-                        <div className="flex items-center gap-1 shrink-0">
+                        <div className="flex items-center gap-2 shrink-0">
                           {task.externalUrl && (
-                            <Button size="icon" variant="ghost" className="h-7 w-7"
+                            <Button size="icon" variant="ghost" className="h-9 w-9"
                               onClick={() => window.open(task.externalUrl, '_blank', 'noopener,noreferrer')}>
-                              <ExternalLink className="h-3.5 w-3.5" />
+                              <ExternalLink className="h-4 w-4" />
                             </Button>
                           )}
-                          <Button size="sm" variant="outline" className="h-7 text-xs px-2.5" asChild>
+                          <Button size="sm" className="h-9 px-4 text-sm" asChild>
                             <Link href={`/dashboard/tasks/${task.id}`}>View</Link>
                           </Button>
                         </div>
@@ -161,9 +161,9 @@ export default function AdminWork() {
 
         {!searched && !isSearching && (
           <Card className="border-border bg-card">
-            <CardContent className="flex flex-col items-center justify-center py-16 gap-2">
-              <p className="text-muted-foreground text-sm">Enter a filter above and press Search or Enter</p>
-              <p className="text-xs text-muted-foreground">Click "Filter syntax guide" to see available keys and examples</p>
+            <CardContent className="flex flex-col items-center justify-center py-16 gap-3">
+              <p className="text-muted-foreground text-base">Enter a filter above and press Search or Enter</p>
+              <p className="text-sm text-muted-foreground">Click "Filter syntax guide" to see available keys and examples</p>
             </CardContent>
           </Card>
         )}
